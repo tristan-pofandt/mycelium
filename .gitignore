@@ -1,0 +1,12 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+.env
+*.sqlite3
+*.db
+data/
+graphify-out/
+CLAUDE.local.md
+.claude/settings.local.json
