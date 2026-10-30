@@ -12,6 +12,9 @@ Looked up 2026-10-31 by a Claude Code subagent from https://code.claude.com/docs
 
 ## OpenTelemetry
 
+Confirmed 2026-10-31 with Claude Code 2.1.314 over http/json: log records carry `event.name` (e.g. `api_request`) as an attribute, and ints arrive as `intValue` strings.
+
+
 - Env: `CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_METRICS_EXPORTER=otlp`, `OTEL_LOGS_EXPORTER=otlp`, `OTEL_EXPORTER_OTLP_PROTOCOL=http/json` (there is no default protocol), `OTEL_EXPORTER_OTLP_ENDPOINT=http://<mycelium>`, `OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer <ingest key>"`. Intervals: metrics 60 s, logs 5 s.
 - Paths: `/v1/metrics` and `/v1/logs`. The JSON envelope (`resourceMetrics`, `resourceLogs`) is the standard OTLP one and is not documented by Claude Code itself.
 - Useful metrics: `claude_code.cost.usage` (USD), `claude_code.token.usage` (`type`, `model`), `claude_code.session.count`, `claude_code.lines_of_code.count`. Temporality defaults to delta.

@@ -10,7 +10,7 @@ from flask import Flask, jsonify, send_from_directory
 
 import collectors
 import db
-from api import ingest, stream
+from api import ingest, otlp, stream
 
 HERE = Path(__file__).resolve().parent
 DIST = Path(os.getenv("MYCELIUM_WEB_DIST", HERE.parent / "web" / "dist"))
@@ -23,6 +23,7 @@ def create_app():
     db.init()
     app.register_blueprint(ingest.bp)
     app.register_blueprint(stream.bp)
+    app.register_blueprint(otlp.bp)
     if os.getenv("MYCELIUM_SCHEDULER", "1") == "1" and not app.testing:
         collectors.start_scheduler()
 
