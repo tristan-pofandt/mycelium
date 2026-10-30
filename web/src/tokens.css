@@ -1,0 +1,66 @@
+/* Design tokens ported from Reroute's DESIGN.md ("Night Dispatcher"): dark first, Inter, tabular numbers. Keep in step with Reroute. */
+:root {
+  --bg-void: #06070b;
+  --bg-base: #090a0f;
+  --bg-surface: #13151d;
+  --bg-card: #181b24;
+  --bg-pop: #1d212c;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --accent: #575af0;
+  --accent-text: #a5b4fc;
+  --accent-soft: rgba(99, 102, 241, 0.16);
+  --success: #34d399;
+  --error: #f87171;
+  --warning: #fbbf24;
+  --teal: #2dd4bf;
+  --violet: #a78bfa;
+  --orange: #fb923c;
+
+  /* Event colours on the map */
+  --ev-read: var(--teal);
+  --ev-write: var(--accent-text);
+  --ev-external: var(--orange);
+  --ev-error: var(--error);
+
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r-tag: 6px;
+  --r-tile: 10px;
+  --r-field: 12px;
+  --r-control: 14px;
+  --r-card: 20px;
+  --r-sheet: 28px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --dur-press: 140ms;
+  --dur-hover: 150ms;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg-void: #e4e7ee;
+    --bg-base: #eef0f5;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --bg-pop: #f6f7fa;
+    --border: rgba(15, 18, 34, 0.08);
+    --border-strong: rgba(15, 18, 34, 0.16);
+    --text: #0f1222;
+    --text-muted: #475569;
+    --text-faint: #64748b;
+    --accent: #4f46e5;
+    --accent-text: #4338ca;
+    --accent-soft: rgba(79, 70, 229, 0.1);
+    color-scheme: light;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg-base); color: var(--text); font-family: var(--font); font-size: 15px; -webkit-font-smoothing: antialiased; }
+body { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; border-radius: var(--r-tag); }
+@media (prefers-reduced-motion: reduce) { * { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
