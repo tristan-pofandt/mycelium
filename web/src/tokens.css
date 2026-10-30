@@ -26,6 +26,10 @@
   --ev-external: var(--orange);
   --ev-error: var(--error);
 
+  /* Chart series, validated (dataviz validate_palette.js) for CVD separation and contrast on --bg-card */
+  --series-1: #6366f1;
+  --series-2: #0d9488;
+
   --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --r-tag: 6px;
   --r-tile: 10px;
@@ -55,6 +59,8 @@
     --accent: #4f46e5;
     --accent-text: #4338ca;
     --accent-soft: rgba(79, 70, 229, 0.1);
+    --series-1: #4f46e5;
+    --series-2: #0d9488;
     color-scheme: light;
   }
 }
