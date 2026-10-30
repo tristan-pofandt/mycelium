@@ -21,6 +21,8 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements.txt pip-audit
       - run: python -m unittest -q
+      - run: python -m unittest -q
+        working-directory: emitters/python
       - run: pip-audit -r requirements.txt
   web:
     runs-on: ubuntu-latest

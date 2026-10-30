@@ -122,6 +122,13 @@ Mycelium proxies admin actions to the app's own admin API; the admin token never
 - Register an app with `python manage.py add-app <slug> <name> --health-url ...`; it prints the ingest key once. Database path: `MYCELIUM_DB` (default `server/data/mycelium.sqlite3`).
 - Not built yet: the read API for the web app (`/api/apps`, rollups, probes), owner login, OTLP endpoints (step 5).
 
+## Emitter as built (step 5, 2026-10-31)
+
+- `emitters/python/mycelium_emitter.py`: one file, standard library only, a no-op unless `MYCELIUM_URL` and `MYCELIUM_KEY` are set. It queues events (oldest dropped beyond 10,000), posts every 2 s or at 200, and drops a batch if Mycelium is unreachable. API: `init_telemetry(app)` (one `request` event per HTTP request, route rule not URL), `emit(...)`, `timed(kind, node, target)` for external calls, `watch_sqlite(conn, node, store)` (read or write per statement from the first SQL keyword; SQL text is never sent).
+- Reroute copies the file into `apps/plan-b-mvp/` (keep the copies identical). It emits: requests; `cost` per billable Google request (`google_api.record_request`); `external` for Google, Open-Meteo, Translink realtime and static, QLDTraffic, weather, Overpass, sign-in providers and the alert webhook; reads and writes of `rides.sqlite3`, `accounts.db`, `push.json`, `vapid.json` (name only), `gtfs/index.json` and the OSM cache (one node, since the file name holds a location). Map nodes are repo-relative (`file:apps/plan-b-mvp/rides.py`).
+- Known gaps: SQLite statements run while the app is being built (before `init_telemetry`) are not reported; the Google cost target is `external:<API name>` while the call target is `external:<host>`, so they are two nodes.
+- Claude Code formats for the hook and OTLP endpoints are in `docs/claude-code-formats.md`.
+
 ## Adding a feature
 
 - **Server:** a collector is a module in `server/collectors/` that registers `name`, `interval` and `run(app)`; it returns events or rollup rows. A panel's data comes from `server/api/<feature>.py`.
