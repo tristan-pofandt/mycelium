@@ -1,3 +1,5 @@
+import os
+import tempfile
 import unittest
 
 from app import create_app
@@ -5,7 +7,15 @@ from app import create_app
 
 class AppTest(unittest.TestCase):
     def setUp(self):
-        self.client = create_app().test_client()
+        self.tmp = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)
+        os.environ["MYCELIUM_DB"] = os.path.join(self.tmp.name, "t.sqlite3")
+        os.environ["MYCELIUM_SCHEDULER"] = "0"
+        app = create_app()
+        app.testing = True
+        self.client = app.test_client()
+
+    def tearDown(self):
+        self.tmp.cleanup()
 
     def test_healthz(self):
         resp = self.client.get("/healthz")

@@ -115,6 +115,13 @@ Mycelium proxies admin actions to the app's own admin API; the admin token never
 - **No content.** Events carry metadata only; the hook and emitters strip query strings, bodies and personal data. Client addresses are not stored.
 - **CSRF and headers.** Same-origin only, strict CSP, SameSite cookies, the same header set as Reroute.
 
+## Back end as built (step 4, 2026-10-31)
+
+- `server/db.py` schema and helpers; `server/api/ingest.py` (`POST /ingest/events`, key in `Authorization: Bearer`, max 500 events per batch, 6000 events per key per minute, the app always comes from the key); `server/bus.py` and `server/api/stream.py` (`GET /api/stream?app=`, 50 events per second per client, a `dropped` event reports the count).
+- `server/collectors/`: `probes.py` (health 60 s, readiness 5 min) and `reroute_usage.py` (5 min; token from env `MYCELIUM_ADMIN_TOKEN_<SLUG>`). A scheduler thread runs them and the hourly job; set `MYCELIUM_SCHEDULER=0` to disable.
+- Register an app with `python manage.py add-app <slug> <name> --health-url ...`; it prints the ingest key once. Database path: `MYCELIUM_DB` (default `server/data/mycelium.sqlite3`).
+- Not built yet: the read API for the web app (`/api/apps`, rollups, probes), owner login, OTLP endpoints (step 5).
+
 ## Adding a feature
 
 - **Server:** a collector is a module in `server/collectors/` that registers `name`, `interval` and `run(app)`; it returns events or rollup rows. A panel's data comes from `server/api/<feature>.py`.

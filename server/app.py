@@ -8,6 +8,10 @@ from pathlib import Path
 
 from flask import Flask, jsonify, send_from_directory
 
+import collectors
+import db
+from api import ingest, stream
+
 HERE = Path(__file__).resolve().parent
 DIST = Path(os.getenv("MYCELIUM_WEB_DIST", HERE.parent / "web" / "dist"))
 STARTED = time.time()
@@ -15,6 +19,12 @@ STARTED = time.time()
 
 def create_app():
     app = Flask(__name__, static_folder=None)
+    app.config["MAX_CONTENT_LENGTH"] = 1_000_000
+    db.init()
+    app.register_blueprint(ingest.bp)
+    app.register_blueprint(stream.bp)
+    if os.getenv("MYCELIUM_SCHEDULER", "1") == "1" and not app.testing:
+        collectors.start_scheduler()
 
     @app.get("/healthz")
     def healthz():
