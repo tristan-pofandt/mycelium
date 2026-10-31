@@ -14,7 +14,8 @@ COPY server/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY server/ ./
 COPY --from=web /web/dist /app/web/dist
-RUN useradd --system --uid 10001 mycelium && mkdir -p /app/data && chown mycelium /app/data
+# Home is the data folder: gunicorn 26 writes its control socket under $HOME.
+RUN useradd --system --uid 10001 --home-dir /app/data mycelium && mkdir -p /app/data && chown mycelium /app/data
 USER mycelium
 EXPOSE 8100
 # One worker keeps the in-memory live bus in one process; threads serve the SSE streams.

@@ -15,7 +15,7 @@ export default function Settings({ apps }) {
       </section>
       <section className="card" aria-labelledby="apps-set-h">
         <h2 id="apps-set-h">Apps</h2>
-        <p className="muted">Add an app with <code>python manage.py add-app</code> in <code>server/</code>. Admin tokens are set on the server as
+        <p className="muted">Add an app with <code>python manage.py add-app</code> in <code>server/</code>. Admin tokens are set on the server as{" "}
           <code>MYCELIUM_ADMIN_TOKEN_&lt;SLUG&gt;</code> and never shown here.</p>
         <Table caption="Registered apps" head={["App", "Slug", "Address", "Admin API", "Last check"]}
           rows={apps.map((a) => [a.name, a.slug, a.base_url || "–", a.capabilities.includes("admin") ? "Set up" : "Not set up",
