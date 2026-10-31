@@ -62,7 +62,7 @@ Each phase ends in something usable. Effort: S is about a day, M a few days, L a
 | Step | How | Done when | Effort |
 |---|---|---|---|
 | 0.1 Deploy | Step 9 of the original plan: Docker image on LXC 101, `tailscale serve` on its own port, env vars from the step 7 list. **Done 2026-10-31:** see `infra/homelab/README.md` | Mycelium runs on the homelab and Reroute reports to it | M |
-| 0.2 Merge Reroute PRs | Review and merge tristan-pofandt/reroute#17 and tristan-pofandt/reroute#18, set `MYCELIUM_URL`, `MYCELIUM_KEY` and `PLANB_ADMIN_TOKEN` on the server | Live events and the Access panel work against production Reroute | S |
+| 0.2 Merge Reroute PRs | Review and merge tristan-pofandt/reroute#17 and tristan-pofandt/reroute#18, set `MYCELIUM_URL`, `MYCELIUM_KEY` and `PLANB_ADMIN_TOKEN` on the server. **Done 2026-11-01** (Reroute `main` `e44f150`) | Live events and the Access panel work against production Reroute | S |
 | 0.3 Screen reader pass | NVDA on Windows over the main flows | Findings fixed or listed | S |
 
 ### Phase 1: ready for other people
