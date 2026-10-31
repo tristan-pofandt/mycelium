@@ -45,13 +45,15 @@ class AuthTest(unittest.TestCase):
         self.assertIn("login.ok", actions)
         self.assertIn("login.failed", actions)
 
-    def test_tailscale_identity_only_when_trusted_and_listed(self):
+    def test_tailscale_identity_only_when_trusted_listed_and_from_loopback(self):
         os.environ.update(MYCELIUM_OWNER="me@example.com")
         who = {"Tailscale-User-Login": "me@example.com"}
-        self.assertEqual(self.client.get("/api/apps", headers=who, environ_overrides=REMOTE).status_code, 401)  # header not trusted
+        self.assertEqual(self.client.get("/api/apps", headers=who).status_code, 401)  # header not trusted yet
         os.environ["MYCELIUM_TRUST_TAILSCALE"] = "1"
-        self.assertEqual(self.client.get("/api/apps", headers=who, environ_overrides=REMOTE).status_code, 200)
-        self.assertEqual(self.client.get("/api/apps", headers={"Tailscale-User-Login": "other@example.com"}, environ_overrides=REMOTE).status_code, 401)
+        self.assertEqual(self.client.get("/api/apps", headers=who).status_code, 200)  # tailscale serve connects from loopback
+        self.assertEqual(self.client.get("/api/apps", headers={"Tailscale-User-Login": "other@example.com"}).status_code, 401)
+        # a neighbour on a Docker bridge (say a compromised app container) can't forge the header
+        self.assertEqual(self.client.get("/api/apps", headers=who, environ_overrides={"REMOTE_ADDR": "172.17.0.5"}).status_code, 401)
 
     def test_ingest_still_uses_keys_not_login(self):
         os.environ["MYCELIUM_PASSWORD"] = "x"

@@ -1,8 +1,9 @@
 """Owner sign-in and CSRF guard. The site is private: every /api/ route needs the owner. Ingest (/ingest, /v1) uses app keys instead.
 
 Ways in, checked in this order:
-- Tailscale: with MYCELIUM_TRUST_TAILSCALE=1, the Tailscale-User-Login header must be one of MYCELIUM_OWNER (comma separated).
-  Only safe when the server listens on 127.0.0.1 behind `tailscale serve`, which sets that header and strips any the client sent.
+- Tailscale: with MYCELIUM_TRUST_TAILSCALE=1, the Tailscale-User-Login header must be one of MYCELIUM_OWNER (comma separated),
+  and the request must come from loopback, where `tailscale serve` connects from (it sets that header and strips any the client
+  sent). Anything else that can reach the server, such as a container on a Docker bridge, is never loopback, so it can't forge it.
 - Password: MYCELIUM_PASSWORD (server environment only) via POST /api/login gives a signed session cookie (HttpOnly, SameSite=Strict, 12 h).
 - Neither configured: requests from this computer (loopback) only, for local development.
 State-changing /api/ requests must also carry an Origin header matching this host.
@@ -43,7 +44,7 @@ def _loopback():
 def owner():
     """(identity, method) for the owner, or None."""
     owners = {o.strip().lower() for o in _env("MYCELIUM_OWNER").split(",") if o.strip()}
-    if _env("MYCELIUM_TRUST_TAILSCALE") == "1":
+    if _env("MYCELIUM_TRUST_TAILSCALE") == "1" and _loopback():  # only `tailscale serve` on this host can set the header
         login = request.headers.get("Tailscale-User-Login", "").strip().lower()
         if login and login in owners:
             return login, "tailscale"
