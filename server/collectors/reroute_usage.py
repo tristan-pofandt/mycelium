@@ -5,14 +5,14 @@ Rows are upserted per (app, day, api, sku), so polling every 5 minutes never dou
 """
 import json
 import logging
-import os
 
 NAME, INTERVAL = "reroute-usage", 300
 log = logging.getLogger("mycelium")
 
 
 def run(conn, app):
-    token = os.getenv("MYCELIUM_ADMIN_TOKEN_" + app["slug"].upper().replace("-", "_"), "").strip()
+    from api.admin import admin_token
+    token = admin_token(app["slug"])
     if not app["admin_url"] or not token:
         return
     from collectors import fetch

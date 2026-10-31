@@ -35,6 +35,16 @@ export function useStream(app, onEvent) {
   return connected;
 }
 
+// send("POST", "/api/admin/reroute/settings", {...}) -> { ok, status, data }. The browser adds the Origin header the server checks.
+export async function send(method, path, body) {
+  try {
+    const r = await fetch(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body ?? {}) });
+    return { ok: r.ok, status: r.status, data: await r.json().catch(() => ({})) };
+  } catch {
+    return { ok: false, status: 0, data: { error: "Mycelium's server can't be reached." } };
+  }
+}
+
 export const fmt = {
   usd: (v) => (v == null ? "–" : v < 0.01 && v > 0 ? `US$${v.toFixed(4)}` : `US$${v.toFixed(2)}`),
   n: (v) => (v == null ? "–" : v.toLocaleString()),

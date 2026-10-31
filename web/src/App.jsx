@@ -6,6 +6,7 @@ import { DUR, EASE } from "./choreography.js";
 import { useReducedMotion } from "./reduced.js";
 import { useApi } from "./api.js";
 import Palette from "./Palette.jsx";
+import Login from "./Login.jsx";
 
 // Capabilities of the selected app; "all" gets the union, so a panel shows when any app supports it.
 const capsOf = (apps, slug) =>
@@ -72,6 +73,13 @@ function Shell({ apps }) {
 }
 
 export default function App() {
+  const me = useApi("/api/me", "all");
+  if (!me.data) return <p className="loading" role="status">{me.error ? "Mycelium's server can't be reached." : "Loading…"}</p>;
+  if (!me.data.owner) return <Login password={me.data.password} onDone={me.reload} />;
+  return <SignedIn />;
+}
+
+function SignedIn() {
   const { data: apps, error } = useApi("/api/apps", "all", { refresh: 60 });
   if (!apps) return <p className="loading" role="status">{error ? "Mycelium's server can't be reached." : "Loading…"}</p>;
   return (

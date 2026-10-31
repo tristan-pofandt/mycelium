@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request
 
 import db
+from api.admin import admin_token
 
 bp = Blueprint("read", __name__)
 DAY = 86400
@@ -48,7 +49,7 @@ def apps():
     out = []
     for r in rows:
         p = latest.get(r["slug"])
-        caps = ["events", "map"] + (["probes"] if r["health_url"] else []) + (["admin"] if r["admin_url"] else [])
+        caps = ["events", "map"] + (["probes"] if r["health_url"] else []) + (["admin"] if r["admin_url"] and admin_token(r["slug"]) else [])
         out.append({"slug": r["slug"], "name": r["name"], "base_url": r["base_url"], "capabilities": caps,
                     "status": None if not p else ("up" if p["ok"] else "down"), "checked": p and p["ts"], "ms": p and p["ms"]})
     return jsonify(out)

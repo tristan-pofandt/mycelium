@@ -140,6 +140,16 @@ Mycelium proxies admin actions to the app's own admin API; the admin token never
 - Live map (`web/src/panels/Map.jsx`): `force-graph` 1.52.0, loaded on demand (its own 59 kB gzipped chunk). Each live event fires `emitParticle` on its edge, coloured by kind; with reduced motion the edge glows briefly instead. Nodes and edges first seen live are added in place. Accessible equivalents: a Graph/Table switch, a Find box, keyboard navigation (Up and Down through all nodes, Left and Right through neighbours, Enter for details, Escape to close), and a polite summary every 10 seconds.
 - Not built yet: the time scrubber for replaying the last hour, filtering the map by kind or source, the Access and Settings views (step 7), and owner login.
 
+## Access and sign-in as built (step 7, 2026-10-31)
+
+- **Owner sign-in** (`server/auth.py`): every `/api/` route needs the owner; `/ingest` and `/v1` keep using app keys. Ways in: Tailscale identity (`MYCELIUM_TRUST_TAILSCALE=1` and the `Tailscale-User-Login` header in `MYCELIUM_OWNER`, safe only when listening on 127.0.0.1 behind `tailscale serve`); a password (`MYCELIUM_PASSWORD`, a signed `HttpOnly`, `SameSite=Strict` cookie for 12 hours, set `MYCELIUM_SECRET_KEY` so sign-ins survive restarts, and `MYCELIUM_SECURE_COOKIE=1` over HTTPS); with neither set, this computer only (loopback) for development. Failed passwords are limited to 10 per 15 minutes per address. Sign-ins are audited without addresses.
+- **CSRF:** every state-changing `/api/` request must carry an `Origin` header matching the host.
+- **Admin proxy** (`server/api/admin.py`): `GET`/`POST /api/admin/<app>/settings`, `GET`/`POST /api/admin/<app>/moderation`, `POST /api/admin/<app>/sessions/revoke`, `GET /api/audit`. Mycelium adds the app's admin token (`MYCELIUM_ADMIN_TOKEN_<SLUG>`) on the server. Every change is audited with ids and status only; moderation text passes through to the owner's browser and is never stored. An app gets the `admin` capability only when it has an admin URL and a token set.
+- **The app side** is Reroute's admin protocol: `/admin/api/settings`, `/admin/api/sessions/revoke` (new in Reroute's `admin_api.py`) and the existing `/admin/moderation`. Another app joins by implementing the same paths.
+- **Web:** a sign-in screen, an Access panel (switches and caps, moderation queue, signing users out, audit log; switching something off, removing, banning and signing out ask for confirmation), and a Settings panel (who is signed in, sign out, registered apps).
+- Checked on 2026-10-31 against a local Reroute on the `feat/admin-api` branch: signing in, changing the plan cap, switching the ride board off and on (Reroute's `/api/rides` answered 404 while off), signing everyone out, and the audit log.
+- Not built: budgets and alert rules in Settings, adding apps or rotating keys from the browser, and persisting runtime changes in Reroute across restarts.
+
 ## Adding a feature
 
 - **Server:** a collector is a module in `server/collectors/` that registers `name`, `interval` and `run(app)`; it returns events or rollup rows. A panel's data comes from `server/api/<feature>.py`.

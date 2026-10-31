@@ -39,12 +39,15 @@ class ReadApiTest(unittest.TestCase):
         return r.get_json()
 
     def test_apps_never_expose_keys(self):
+        os.environ["MYCELIUM_ADMIN_TOKEN_REROUTE"] = "secret-admin"
+        self.addCleanup(os.environ.pop, "MYCELIUM_ADMIN_TOKEN_REROUTE")
         apps = self.get("/api/apps")
         self.assertEqual([a["slug"] for a in apps], ["other", "reroute"])
         reroute = apps[1]
         self.assertEqual((reroute["status"], set(reroute["capabilities"])), ("down", {"events", "map", "probes", "admin"}))
         self.assertNotIn("key_hash", json.dumps(apps))
         self.assertNotIn(db.hash_key(self.key), json.dumps(apps))
+        self.assertNotIn("secret-admin", json.dumps(apps))
 
     def test_summary_counts_and_cost_not_double_counted(self):
         s = self.get("/api/summary?app=reroute")

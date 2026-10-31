@@ -89,6 +89,26 @@ code { font-size: 13px; padding: 1px 5px; border-radius: var(--r-tag); backgroun
 .segmented button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent-text); }
 .link { font: inherit; color: var(--accent-text); background: none; border: 0; padding: 0; cursor: pointer; text-align: left; word-break: break-all; }
 
+.button-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.button-primary:hover { background: var(--accent); filter: brightness(1.1); }
+.button-danger { color: var(--error); }
+.button:disabled { opacity: 0.5; cursor: not-allowed; }
+.error-text { color: var(--error); margin: 8px 0 0; }
+.ok-text { color: var(--success); margin: 8px 0 0; }
+.form-grid { display: grid; gap: 14px; max-width: 520px; }
+.field { display: grid; gap: 6px; font-size: 14px; }
+.check { display: flex; align-items: center; gap: 10px; font-size: 15px; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.queue { list-style: none; margin: 0; padding: 0; }
+.queue-item { padding: 16px 0; border-top: 1px solid var(--border); }
+.queue-item:first-child { border-top: 0; padding-top: 0; }
+.queue-item p { margin: 0 0 6px; }
+.content h3 { font-size: 15px; margin: 20px 0 8px; }
+.login { max-width: 400px; margin: 12vh auto; padding: 0 16px; }
+.login h1 { font-size: 30px; letter-spacing: -0.03em; }
+.login-card { display: grid; gap: 12px; }
+
 .map { height: 520px; border-radius: var(--r-tile); background: var(--bg-surface); overflow: hidden; }
 .details { margin-top: 16px; padding: 16px; border: 1px solid var(--border-strong); border-radius: var(--r-tile); background: var(--bg-surface); }
 .details-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; }
