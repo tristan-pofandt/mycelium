@@ -7,6 +7,7 @@ import { useReducedMotion } from "./reduced.js";
 import { useApi } from "./api.js";
 import Palette from "./Palette.jsx";
 import Login from "./Login.jsx";
+import { Icon } from "./icons.jsx";
 
 // Capabilities of the selected app; "all" gets the union, so a panel shows when any app supports it.
 const capsOf = (apps, slug) =>
@@ -34,6 +35,7 @@ function Shell({ apps }) {
   const appName = app === "all" ? "All apps" : apps.find((a) => a.slug === app)?.name || app;
   return (
     <div className="shell">
+      <a href="#main" className="skip-link">Skip to content</a>
       <nav className="sidebar" aria-label="Mycelium">
         <div className="brand">Mycelium</div>
         <label className="field-label" htmlFor="app-select">App</label>
@@ -41,8 +43,8 @@ function Shell({ apps }) {
           <option value="all">All apps</option>
           {apps.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
         </select>
-        <button type="button" className="palette-hint" onClick={() => setPaletteOpen(true)}>
-          Search <kbd>Ctrl</kbd> <kbd>K</kbd>
+        <button type="button" className="palette-hint" onClick={() => setPaletteOpen(true)} aria-keyshortcuts="Control+K">
+          <Icon name="search" />Go to <kbd>Ctrl</kbd><kbd>K</kbd>
         </button>
         <ul className="nav-list" role="list">
           {visible.map((p) => (
@@ -50,7 +52,7 @@ function Shell({ apps }) {
           ))}
         </ul>
       </nav>
-      <main className="content" id="main">
+      <main className="content" id="main" tabIndex={-1}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={location.pathname}
@@ -60,8 +62,7 @@ function Shell({ apps }) {
             transition={{ duration: DUR.panel, ease: EASE }}
           >
             <header className="page-head">
-              <p className="eyebrow">{appName}</p>
-              <h1>{current.title}</h1>
+              <h1>{current.title} <span className="h1-scope">{appName}</span></h1>
             </header>
             <Panel app={app} apps={apps} />
           </motion.div>

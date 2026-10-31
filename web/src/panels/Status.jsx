@@ -1,11 +1,12 @@
 import { fmt, useApi } from "../api.js";
 import { DataTable, Table } from "../charts.jsx";
+import { Icon } from "../icons.jsx";
 
 // Status always pairs a colour with an icon and a word, never colour alone.
-const STATUS = { up: ["●", "Up", "ok"], down: ["▲", "Down", "bad"], null: ["○", "Unknown", "none"] };
+const STATUS = { up: ["up", "Up", "ok"], down: ["down", "Down", "bad"], null: ["unknown", "Unknown", "none"] };
 export function StatusBadge({ status }) {
   const [icon, word, cls] = STATUS[status] || STATUS.null;
-  return <span className={`badge badge-${cls}`}><span aria-hidden="true">{icon}</span> {word}</span>;
+  return <span className={`badge badge-${cls}`}><Icon name={icon} />{word}</span>;
 }
 
 const dayClass = (d) => (!d ? "none" : d.up_pct >= 99.9 ? "ok" : d.up_pct >= 95 ? "warn" : "bad");

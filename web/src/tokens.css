@@ -30,7 +30,7 @@
   --series-1: #6366f1;
   --series-2: #0d9488;
 
-  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --r-tag: 6px;
   --r-tile: 10px;
   --r-field: 12px;
@@ -61,11 +61,21 @@
     --accent-soft: rgba(79, 70, 229, 0.1);
     --series-1: #4f46e5;
     --series-2: #0d9488;
+    /* Mycelium additions (not in Reroute's DESIGN.md): the dark status and accent hues are under 3:1 on light surfaces, so light
+       mode gets darker steps that reach 4.5:1 on --bg-card and --bg-pop. */
+    --success: #047857;
+    --error: #b91c1c;
+    --warning: #b45309;
+    --teal: #0f766e;
+    --orange: #c2410c;
+    --violet: #6d28d9;
     color-scheme: light;
   }
 }
 
 * { box-sizing: border-box; }
+::selection { background: var(--accent-soft); color: var(--text); }
+html { scrollbar-color: var(--border-strong) transparent; caret-color: var(--accent-text); accent-color: var(--accent); }
 html, body { margin: 0; background: var(--bg-base); color: var(--text); font-family: var(--font); font-size: 15px; -webkit-font-smoothing: antialiased; }
 body { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; border-radius: var(--r-tag); }

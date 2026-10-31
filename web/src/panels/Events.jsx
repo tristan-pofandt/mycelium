@@ -1,6 +1,7 @@
 // Event log: the latest events, live-tailing from the stream, with filters and paging back through history.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fmt, useApi, useStream } from "../api.js";
+import { Icon } from "../icons.jsx";
 
 const KINDS = ["", "request", "read", "write", "external", "cost", "probe", "admin", "log"];
 const SOURCES = ["", "app", "claude", "probe", "collector"];
@@ -23,7 +24,7 @@ export function EventTable({ events, showApp }) {
               <td><span className={`kind kind-${e.kind}`}>{e.kind}</span></td>
               <td>{e.source}</td>
               <td className="mono">{describe(e)}</td>
-              <td>{e.status === "error" ? <span className="badge badge-bad"><span aria-hidden="true">▲</span> error</span> : e.status || ""}</td>
+              <td>{e.status === "error" ? <span className="badge badge-bad"><Icon name="down" />error</span> : e.status || ""}</td>
               <td>{e.duration_ms != null ? fmt.ms(e.duration_ms) : ""}</td>
               <td>{e.usd ? fmt.usd(e.usd) : ""}</td>
             </tr>
@@ -40,10 +41,17 @@ export function useEventLog(app, params = {}, keep = () => true) {
   const [older, setOlder] = useState(true);
   const [paused, setPaused] = useState(false);
   useEffect(() => { if (data) { setEvents(data); setOlder(data.length >= 100); } }, [data]);
-  const connected = useStream(app, (e) => {
-    if (paused || !keep(e)) return;
-    setEvents((list) => [e, ...list].slice(0, MAX));
-  });
+  const pending = useRef([]);
+  const connected = useStream(app, (e) => { if (!paused && keep(e)) pending.current.push(e); });
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (!pending.current.length) return;
+      const fresh = pending.current.reverse();
+      pending.current = [];
+      setEvents((list) => [...fresh, ...list].slice(0, MAX));
+    }, 250);
+    return () => clearInterval(t);
+  }, []);
   const loadOlder = async () => {
     const last = events.findLast((e) => e.id)?.id;
     const r = await fetch(`/api/events?${new URLSearchParams({ app, ...params, ...(last ? { before: last } : {}) })}`);

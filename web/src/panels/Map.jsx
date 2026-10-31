@@ -1,18 +1,45 @@
-// Live map: every file, store, endpoint, external API and actor as a force-directed graph (force-graph on canvas). Each live event sends
-// a pulse along its edge (read teal, write indigo, external orange, error red); with reduced motion the edge lights up briefly instead.
+// Live map, drawn the way Obsidian's graph view looks: small nodes sized by their connections, thin faint links, labels that fade
+// in as you zoom, and hovering or focusing a node keeps it and its neighbours bright while the rest dims. Each live event sends a
+// pulse along its edge (read teal, write indigo, external orange, error red) that ends in a ring on the node it reaches; with
+// reduced motion the edge lights up briefly instead. Extras from Obsidian plugins: a local graph (neighbours to depth 1 or 2),
+// filtering by kind from the legend, and dragging a node pins it.
 // Accessible equivalents: a table view, keyboard navigation between neighbours, and a polite live summary every 10 seconds.
+// Performance: colours are read from CSS once per theme (not per frame), and the canvas only redraws continuously while a pulse,
+// ring or fade is on screen.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fmt, useApi, useStream } from "../api.js";
 import { reducedMotion } from "../reduced.js";
-import { DUR } from "../choreography.js";
+import { DUR, EASE } from "../choreography.js";
+import { cubicBezier } from "framer-motion";
+import { forceX, forceY } from "d3-force-3d"; // the same copy force-graph uses
 import { Table } from "../charts.jsx";
+import { Icon } from "../icons.jsx";
 
-const NODE_VAR = { file: "--text-faint", store: "--violet", endpoint: "--text-muted", external: "--orange", actor: "--text" }; // never a pulse colour, so nodes and pulses can't be confused
-const EVENT_VAR = { read: "--ev-read", write: "--ev-write", external: "--ev-external", cost: "--ev-external", error: "--ev-error" };
-const KIND_LABEL = { file: "File", store: "Data store", endpoint: "Endpoint", external: "External API", actor: "Actor" };
-const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim() || "#888";
+const KINDS = { file: "File", store: "Data store", endpoint: "Endpoint", external: "External API", actor: "Actor" };
+const NODE_VAR = { file: "--text-muted", store: "--violet", endpoint: "--teal", external: "--orange", actor: "--text" };
+const EVENT_VAR = { read: "--ev-read", write: "--ev-write", external: "--ev-external", cost: "--ev-external", request: "--ev-read", error: "--ev-error" };
+const PULSE_MS = 700, RING_MS = 600, MAX_PULSES = 200, DIM = 0.12;
+const ease = cubicBezier(...EASE);
 const label = (id) => id.split(":").slice(1).join(":") || id;
+const short = (id) => label(id).split("/").filter(Boolean).pop() || label(id);
 const edgeOf = (e) => (e.target ? [e.node, e.target] : [e.actor, e.node]); // the same rule as the server (api/ingest.py)
+const endId = (end) => (typeof end === "object" ? end.id : end);
+
+function rgba(hex, a) {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map((c) => c + c).join("") : h.slice(0, 6), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+}
+
+function readPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name) => cs.getPropertyValue(name).trim() || "#888888";
+  return {
+    node: Object.fromEntries(Object.entries(NODE_VAR).map(([k, n]) => [k, v(n)])),
+    event: Object.fromEntries(Object.entries(EVENT_VAR).map(([k, n]) => [k, v(n)])),
+    link: v("--text-faint"), accent: v("--accent-text"), text: v("--text"), muted: v("--text-muted"), font: v("--font"),
+  };
+}
 
 function buildGraph(raw, app) {
   const key = (a, id) => (app === "all" ? `${a}|${id}` : id);
@@ -21,95 +48,198 @@ function buildGraph(raw, app) {
   return { nodes, links, key };
 }
 
+function adjacency(links) {
+  const adj = new Map();
+  const add = (a, b) => (adj.get(a) || adj.set(a, new Set()).get(a)).add(b);
+  for (const l of links) { const s = endId(l.source), t = endId(l.target); add(s, t); add(t, s); }
+  return adj;
+}
+
+function within(adj, start, depth) {
+  const seen = new Set([start]);
+  let frontier = [start];
+  for (let d = 0; d < depth; d++) frontier = frontier.flatMap((id) => [...(adj.get(id) || [])].filter((n) => !seen.has(n) && seen.add(n)));
+  return seen;
+}
+
 export default function MapPanel({ app }) {
   const { data } = useApi("/api/graph", app);
   const [view, setView] = useState("graph");
   const [focus, setFocus] = useState(null);
   const [open, setOpen] = useState(null);
   const [summary, setSummary] = useState("");
+  const [hidden, setHidden] = useState(() => new Set());
+  const [local, setLocal] = useState(0); // 0 = whole graph, 1 or 2 = neighbours of the focused node to that depth
+  const [pinned, setPinned] = useState(0);
   const box = useRef(null);
   const fg = useRef(null);
   const graph = useRef(null);
-  const glow = useRef(new Map()); // link -> { until, color } for reduced motion
+  const s = useRef({ pal: null, adj: new Map(), hover: null, focus: null, lit: null, litLast: null, fadeFrom: 0, visible: null, hidden: new Set(),
+    pulses: [], rings: [], glow: new Map(), busyUntil: 0 }).current;
   const tally = useRef({});
 
-  // (Re)build the graph when the data or app changes.
+  // Keep the canvas drawing for `ms` (a fade or glow); pulses and rings keep it drawing on their own.
+  const kick = (ms) => { s.busyUntil = Math.max(s.busyUntil, performance.now() + ms); fg.current?.autoPauseRedraw(false); };
+  const refresh = () => { const g = fg.current; if (g) { g.nodeVisibility(g.nodeVisibility()); kick(50); } };
+
+  // Which nodes are highlighted: the hovered one (or the keyboard focus) and its neighbours.
+  const relight = () => {
+    const centre = s.hover || s.focus;
+    const next = centre ? new Set([centre, ...(s.adj.get(centre) || [])]) : null;
+    if (!next !== !s.lit) s.fadeFrom = performance.now(); // highlight appearing or going: fade; moving between nodes: swap at once
+    s.lit = next;
+    if (next) s.litLast = next; // kept so a fade-out still knows what it is fading from
+    kick(DUR.hover * 1000 + 50);
+  };
+  // 0 = nothing highlighted, 1 = fully dimmed around the highlight; eased over the hover duration.
+  const dimK = () => {
+    const t = Math.min(1, (performance.now() - s.fadeFrom) / (DUR.hover * 1000 || 1));
+    const k = ease(reducedMotion() ? 1 : t);
+    return s.lit ? k : 1 - k;
+  };
+
+  useEffect(() => {
+    s.pal = readPalette();
+    const mq = matchMedia("(prefers-color-scheme: dark)");
+    const onTheme = () => { s.pal = readPalette(); refresh(); };
+    mq.addEventListener?.("change", onTheme);
+    return () => mq.removeEventListener?.("change", onTheme);
+  }, []);
+
   useEffect(() => {
     if (!data || view !== "graph") return;
     let disposed = false;
     graph.current = buildGraph(data, app);
+    s.adj = adjacency(graph.current.links);
     import("force-graph").then(({ default: ForceGraph }) => {
       if (disposed || !box.current) return;
+      const P = () => s.pal;
+      const shown = (n) => !s.hidden.has(n.kind) && (!s.visible || s.visible.has(n.id));
+      const degree = (n) => s.adj.get(n.id)?.size || 0;
       const g = new ForceGraph(box.current)
         .backgroundColor("rgba(0,0,0,0)")
-        .width(box.current.clientWidth).height(520)
-        .nodeId("id").nodeLabel((n) => `${KIND_LABEL[n.kind] || n.kind}: ${n.raw}`)
-        .nodeVal((n) => 1 + Math.log2(1 + (n.hits || 0)))
-        .nodeColor((n) => css(NODE_VAR[n.kind] || "--text-muted"))
-        .nodeRelSize(3)
-        .cooldownTicks(120).onEngineStop(() => { if (!fg.current?._fitted) { fg.current._fitted = true; fg.current.zoomToFit(reducedMotion() ? 0 : 400, 60); } })
-        .linkColor((l) => glow.current.get(l)?.until > performance.now() ? glow.current.get(l).color : css("--text-faint"))
-        .linkWidth((l) => (glow.current.get(l)?.until > performance.now() ? 2.5 : 1))
-        .linkDirectionalParticleColor((l) => l.pulse || css("--text-muted"))
-        .linkDirectionalParticleWidth(5)
-        .linkDirectionalParticleSpeed(0.012)
-        .nodeCanvasObjectMode(() => "after")
+        .width(box.current.clientWidth).height(box.current.clientHeight)
+        .nodeId("id").nodeLabel(() => "") // labels are drawn on the canvas; details live in the side panel and table
+        .nodeRelSize(2.2)
+        .nodeVal((n) => 1 + Math.min(degree(n), 12) * 0.9)
+        .nodeVisibility(shown)
+        .linkVisibility((l) => shown(typeof l.source === "object" ? l.source : { id: l.source, kind: "" }) && shown(typeof l.target === "object" ? l.target : { id: l.target, kind: "" }))
+        .nodeCanvasObjectMode(() => "replace")
         .nodeCanvasObject((n, ctx, scale) => {
-          if (n.id === fg.current?._focus) {
-            ctx.beginPath(); ctx.arc(n.x, n.y, 8, 0, 2 * Math.PI);
-            ctx.strokeStyle = css("--accent-text"); ctx.lineWidth = 2 / scale; ctx.stroke();
+          const k = dimK(), lit = s.lit || s.litLast, on = !lit || lit.has(n.id);
+          const r = Math.sqrt(1 + Math.min(degree(n), 12) * 0.9) * 2.2;
+          ctx.globalAlpha = on ? 1 : 1 - (1 - DIM) * k;
+          ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
+          ctx.fillStyle = P().node[n.kind] || P().muted; ctx.fill();
+          if (n.fx != null) { ctx.lineWidth = 1 / scale; ctx.strokeStyle = P().muted; ctx.stroke(); } // pinned
+          if (n.id === s.focus) { ctx.beginPath(); ctx.arc(n.x, n.y, r + 3, 0, 2 * Math.PI); ctx.lineWidth = 1.5 / scale; ctx.strokeStyle = P().accent; ctx.stroke(); }
+          // Labels fade in with zoom, like Obsidian's text fade threshold; highlighted nodes always show theirs.
+          const zoomA = Math.min(1, Math.max(0, (scale - 0.9) / 0.9));
+          const a = lit && lit.has(n.id) && k > 0 ? Math.max(zoomA, k) : on ? zoomA : zoomA * (1 - (1 - DIM) * k);
+          if (a > 0.02) {
+            const px = 11 / Math.max(scale, 0.8);
+            ctx.globalAlpha = a; ctx.font = `${px}px ${P().font}`; ctx.textAlign = "center"; ctx.textBaseline = "top";
+            ctx.fillStyle = n.id === s.hover || n.id === s.focus ? P().text : P().muted;
+            ctx.fillText(short(n.raw), n.x, n.y + r + 2 / scale);
           }
-          if (scale > 2.2 || graph.current.nodes.length <= 60 || n.id === fg.current?._focus) {
-            ctx.font = `${11 / scale}px Inter, system-ui, sans-serif`; ctx.fillStyle = css("--text-muted");
-            ctx.fillText(label(n.raw).split("/").pop(), n.x + 6, n.y + 3);
-          }
+          ctx.globalAlpha = 1;
         })
+        .nodePointerAreaPaint((n, color, ctx) => {
+          const r = Math.sqrt(1 + Math.min(degree(n), 12) * 0.9) * 2.2 + 3; // a hit target bigger than the dot
+          ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fill();
+        })
+        .linkColor((l) => {
+          const glow = s.glow.get(l);
+          if (glow && glow.until > performance.now()) return glow.color;
+          const lit = s.lit || s.litLast, k = dimK();
+          const touches = lit && (endId(l.source) === (s.hover || s.focus) || endId(l.target) === (s.hover || s.focus));
+          if (touches && k > 0) return rgba(P().accent, 0.35 + 0.55 * k);
+          return rgba(P().link, lit ? 0.45 - 0.37 * k : 0.45);
+        })
+        .linkWidth((l) => (s.glow.get(l)?.until > performance.now() ? 2.5 : 1))
+        .linkDirectionalArrowLength(2.5).linkDirectionalArrowRelPos(1)
+        .onNodeHover((n) => { s.hover = n?.id || null; box.current && (box.current.style.cursor = n ? "pointer" : ""); relight(); })
         .onNodeClick((n) => { setFocus(n.id); setOpen(n.id); })
+        .onNodeDragEnd((n) => { n.fx = n.x; n.fy = n.y; setPinned((c) => c + 1); })
+        .onRenderFramePost((ctx, scale) => {
+          const now = performance.now();
+          // Pulses: eased travel along the edge, a soft halo drawn as a second circle (canvas shadowBlur is costly).
+          s.pulses = s.pulses.filter((p) => {
+            const t = (now - p.t0) / PULSE_MS;
+            if (t >= 1) { s.rings.push({ node: p.link.target, color: p.color, t0: now }); return false; }
+            const { source: a, target: b } = p.link;
+            if (a.x == null || b.x == null) return false;
+            const e = ease(t), x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e;
+            ctx.fillStyle = rgba(p.color, 0.22); ctx.beginPath(); ctx.arc(x, y, 5 / Math.sqrt(scale), 0, 2 * Math.PI); ctx.fill();
+            ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(x, y, 2.2 / Math.sqrt(scale), 0, 2 * Math.PI); ctx.fill();
+            return true;
+          });
+          // Rings: the node that was read, written or called breathes out once.
+          s.rings = s.rings.filter((r) => {
+            const t = (now - r.t0) / RING_MS;
+            if (t >= 1 || r.node.x == null) return false;
+            ctx.strokeStyle = rgba(r.color, 0.6 * (1 - t)); ctx.lineWidth = 1.5 / scale;
+            ctx.beginPath(); ctx.arc(r.node.x, r.node.y, 4 + 10 * ease(t), 0, 2 * Math.PI); ctx.stroke();
+            return true;
+          });
+          if (!s.pulses.length && !s.rings.length && now > s.busyUntil) g.autoPauseRedraw(true);
+        })
+        .cooldownTicks(150)
+        .onEngineStop(() => { if (!g._fitted) { g._fitted = true; g.zoomToFit(reducedMotion() ? 0 : DUR.morph * 1000, 48); } })
         .graphData({ nodes: graph.current.nodes, links: graph.current.links });
+      // Obsidian-like forces: gentle repulsion, short links, and a pull to the centre so separate clusters stay close together.
+      g.d3Force("charge").strength(-45);
+      g.d3Force("link").distance(28);
+      g.d3Force("x", forceX(0).strength(0.07));
+      g.d3Force("y", forceY(0).strength(0.07));
       fg.current = g;
     });
-    const onResize = () => fg.current && box.current && fg.current.width(box.current.clientWidth);
-    addEventListener("resize", onResize);
-    return () => { disposed = true; removeEventListener("resize", onResize); fg.current?._destructor?.(); fg.current = null; };
+    const ro = new ResizeObserver(() => fg.current && box.current && fg.current.width(box.current.clientWidth).height(box.current.clientHeight));
+    if (box.current) ro.observe(box.current);
+    return () => { disposed = true; ro.disconnect(); fg.current?._destructor?.(); fg.current = null; };
   }, [data, app, view]);
 
-  // Keep the focus ring and camera on the focused node.
+  // Kind filters and the local graph change which nodes are shown.
   useEffect(() => {
-    const g = fg.current;
-    if (!g) return;
-    g._focus = focus;
-    const n = graph.current?.nodes.find((x) => x.id === focus);
-    if (n && n.x != null) g.centerAt(n.x, n.y, reducedMotion() ? 0 : DUR.morph * 1000);
+    s.hidden = hidden;
+    s.visible = local && focus ? within(s.adj, focus, local) : null;
+    refresh();
+  }, [hidden, local, focus]);
+
+  // Keyboard focus highlights like a hover and keeps the camera on the node.
+  useEffect(() => {
+    s.focus = focus;
+    relight();
+    const g = fg.current, n = graph.current?.nodes.find((x) => x.id === focus);
+    if (g && n && n.x != null) g.centerAt(n.x, n.y, reducedMotion() ? 0 : DUR.morph * 1000);
   }, [focus]);
 
-  // Live events: pulse or glow along the edge; add nodes and edges first seen now.
   const connected = useStream(app, (e) => {
-    tally.current[e.status === "error" ? "error" : e.kind] = (tally.current[e.status === "error" ? "error" : e.kind] || 0) + 1;
+    const kind = e.status === "error" ? "error" : e.kind;
+    tally.current[kind] = (tally.current[kind] || 0) + 1;
     const g = fg.current, G = graph.current;
-    if (!g || !G) return;
-    const [s, d] = edgeOf(e);
-    if (!s || !d || s === d) return;
-    const [src, dst] = [G.key(e.app, s), G.key(e.app, d)];    const { nodes, links } = g.graphData();
+    if (!g || !G || !s.pal) return;
+    const [a, b] = edgeOf(e);
+    if (!a || !b || a === b) return;
+    const [src, dst] = [G.key(e.app, a), G.key(e.app, b)];
+    const { nodes, links } = g.graphData();
     let added = false;
-    for (const [id, raw] of [[src, s], [dst, d]]) {
+    for (const [id, raw] of [[src, a], [dst, b]]) {
       if (!nodes.some((n) => n.id === id)) { nodes.push({ id, raw, app: e.app, kind: raw.split(":")[0], hits: 0 }); added = true; }
     }
-    let link = links.find((l) => (l.source.id ?? l.source) === src && (l.target.id ?? l.target) === dst);
+    let link = links.find((l) => endId(l.source) === src && endId(l.target) === dst);
     if (!link) { link = { source: src, target: dst, kind: e.kind, hits: 0 }; links.push(link); added = true; }
-    if (added) { g.graphData({ nodes, links }); G.nodes = nodes; G.links = links; } // d3 resolves link ends in place, so `link` stays valid
-    const color = css(EVENT_VAR[e.status === "error" ? "error" : e.kind] || "--text-muted");
+    if (added) { g.graphData({ nodes, links }); G.nodes = nodes; G.links = links; s.adj = adjacency(links); } // d3 resolves link ends in place
+    const color = s.pal.event[kind] || s.pal.muted;
     if (reducedMotion()) {
-      // force-graph pauses redraws once settled (particles keep it drawing, a colour change does not): one redraw now, one to clear
-      glow.current.set(link, { until: performance.now() + 1200, color });
-      g.linkColor(g.linkColor());
-      setTimeout(() => fg.current?.linkColor(fg.current.linkColor()), 1250);
-    } else {
-      link.pulse = color;
-      g.emitParticle(link);
+      s.glow.set(link, { until: performance.now() + 1200, color });
+      kick(1300);
+    } else if (s.pulses.length < MAX_PULSES) {
+      s.pulses.push({ link, color, t0: performance.now() });
+      g.autoPauseRedraw(false);
     }
   });
 
-  // A polite summary every 10 seconds instead of one announcement per event.
   useEffect(() => {
     const t = setInterval(() => {
       const c = tally.current;
@@ -122,36 +252,31 @@ export default function MapPanel({ app }) {
   }, []);
 
   const nodes = useMemo(() => (data ? buildGraph(data, app).nodes.sort((a, b) => a.raw.localeCompare(b.raw)) : []), [data, app]);
-  const neighbours = (id) => {
-    const ids = new Set();
-    for (const l of graph.current?.links || []) {
-      const s = l.source.id ?? l.source, t = l.target.id ?? l.target;
-      if (s === id) ids.add(t);
-      if (t === id) ids.add(s);
-    }
-    return [...ids].sort();
-  };
+  const visibleNodes = nodes.filter((n) => !hidden.has(n.kind) && (!s.visible || s.visible.has(n.id)));
+  const neighbours = (id) => [...(s.adj.get(id) || [])].sort();
   const onKey = (e) => {
-    if (!nodes.length) return;
-    const i = nodes.findIndex((n) => n.id === focus);
-    const nb = focus ? neighbours(focus) : [];
+    if (!visibleNodes.length) return;
+    const i = visibleNodes.findIndex((n) => n.id === focus);
+    const nb = focus ? neighbours(focus).filter((id) => visibleNodes.some((n) => n.id === id)) : [];
     let next = null;
-    if (e.key === "ArrowDown") next = nodes[(i + 1) % nodes.length].id;
-    else if (e.key === "ArrowUp") next = nodes[(i - 1 + nodes.length) % nodes.length].id;
+    if (e.key === "ArrowDown") next = visibleNodes[(i + 1) % visibleNodes.length].id;
+    else if (e.key === "ArrowUp") next = visibleNodes[(i - 1 + visibleNodes.length) % visibleNodes.length].id;
     else if (e.key === "ArrowRight" && nb.length) next = nb[(nb.indexOf(focus) + 1) % nb.length];
     else if (e.key === "ArrowLeft" && nb.length) next = nb[(nb.length + nb.indexOf(focus) - 1) % nb.length];
     else if (e.key === "Enter" && focus) { e.preventDefault(); setOpen(focus); return; }
-    else if (e.key === "Escape") { setOpen(null); return; }
+    else if (e.key === "Escape") { setOpen(null); setFocus(null); return; }
     else return;
     e.preventDefault();
     setFocus(next);
   };
+  const toggleKind = (k) => setHidden((h) => { const n = new Set(h); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const unpin = () => { for (const n of fg.current?.graphData().nodes || []) { n.fx = n.fy = undefined; } fg.current?.d3ReheatSimulation(); setPinned(0); };
 
   const focused = nodes.find((n) => n.id === focus);
   const opened = nodes.find((n) => n.id === open);
   if (!data) return <p className="muted" role="status">Loading…</p>;
   return (
-    <section className="card">
+    <section className="card map-card">
       <div className="toolbar">
         <div role="group" aria-label="View" className="segmented">
           <button type="button" aria-pressed={view === "graph"} onClick={() => setView("graph")}>Graph</button>
@@ -160,39 +285,54 @@ export default function MapPanel({ app }) {
         <label>Find <input className="select" list="map-nodes" placeholder="File, store or API"
           onChange={(e) => { const n = nodes.find((x) => x.raw === e.target.value); if (n) { setFocus(n.id); setOpen(n.id); } }} /></label>
         <datalist id="map-nodes">{nodes.map((n) => <option key={n.id} value={n.raw} />)}</datalist>
-        <span className="muted">{connected ? "Live" : "Reconnecting…"}</span>
+        <label>Show <select className="select" value={local} onChange={(e) => setLocal(Number(e.target.value))} disabled={!focus}
+          aria-describedby="local-hint">
+          <option value={0}>Whole map</option><option value={1}>Neighbours of the selected node</option><option value={2}>Two steps out</option>
+        </select></label>
+        {pinned > 0 && <button type="button" className="button" onClick={unpin}>Release pinned nodes</button>}
+        <span className="live" role="status"><span className={`live-dot ${connected ? "on" : ""}`} aria-hidden="true" />{connected ? "Live" : "Reconnecting…"}</span>
       </div>
-      <ul className="legend">
-        {Object.entries(KIND_LABEL).map(([k, l]) => <li key={k}><span className="swatch round" style={{ background: `var(${NODE_VAR[k]})` }} />{l}</li>)}
-        <li><span className="swatch" style={{ background: "var(--ev-read)" }} />Read</li>
-        <li><span className="swatch" style={{ background: "var(--ev-write)" }} />Write</li>
-        <li><span className="swatch" style={{ background: "var(--ev-external)" }} />External</li>
-        <li><span className="swatch" style={{ background: "var(--ev-error)" }} />Error</li>
-      </ul>
+      <p id="local-hint" className="sr-only">Select a node first to show only its neighbours.</p>
+      <div className="map-legend">
+        <div role="group" aria-label="Show node kinds" className="chips">
+          {Object.entries(KINDS).map(([k, l]) => (
+            <button key={k} type="button" className="chip" aria-pressed={!hidden.has(k)} onClick={() => toggleKind(k)}>
+              <span className="swatch round" style={{ background: `var(${NODE_VAR[k]})` }} />{l}
+            </button>
+          ))}
+        </div>
+        <ul className="legend" aria-label="Pulse colours">
+          <li><span className="swatch line" style={{ background: "var(--ev-read)" }} />Read</li>
+          <li><span className="swatch line" style={{ background: "var(--ev-write)" }} />Write</li>
+          <li><span className="swatch line" style={{ background: "var(--ev-external)" }} />External</li>
+          <li><span className="swatch line" style={{ background: "var(--ev-error)" }} />Error</li>
+        </ul>
+      </div>
       <p className="sr-only" aria-live="polite">{summary}</p>
       {!nodes.length && <p className="muted">Nothing on the map yet. Nodes appear as soon as the app or Claude Code reports activity.</p>}
       {view === "graph" && nodes.length > 0 && (
         <>
           <div ref={box} className="map" tabIndex={0} role="application" onKeyDown={onKey}
-            aria-label="Activity map. Up and down arrows move through all nodes, left and right through the focused node's neighbours, Enter opens details."
+            aria-label="Activity map. Up and down arrows move through all nodes, left and right through the selected node's neighbours, Enter opens details, Escape clears."
             aria-describedby="map-focus" />
-          <p id="map-focus" className="muted" aria-live="polite">
-            {focused ? `${KIND_LABEL[focused.kind] || focused.kind}: ${focused.raw}, ${neighbours(focused.id).length} connections` : "Select the map and use the arrow keys, or click a node."}
+          <p id="map-focus" className="map-caption" aria-live="polite">
+            {focused ? <><strong>{short(focused.raw)}</strong> · {KINDS[focused.kind] || focused.kind} · {neighbours(focused.id).length} connections</>
+              : "Hover a node to see its connections, or select the map and use the arrow keys. Drag a node to pin it."}
           </p>
         </>
       )}
       {view === "table" && (
         <>
           <Table caption="Nodes" head={["Node", "Kind", ...(app === "all" ? ["App"] : []), "Activity", "Last seen"]}
-            rows={nodes.map((n) => [
+            rows={visibleNodes.map((n) => [
               <button key="b" type="button" className="link" onClick={() => setOpen(n.id)}>{n.raw}</button>,
-              KIND_LABEL[n.kind] || n.kind, ...(app === "all" ? [n.app] : []), fmt.n(n.hits), n.last_seen ? fmt.ago(n.last_seen) : "–"])} />
+              KINDS[n.kind] || n.kind, ...(app === "all" ? [n.app] : []), fmt.n(n.hits), n.last_seen ? fmt.ago(n.last_seen) : "–"])} />
           <h2>Connections</h2>
           <Table caption="Connections" head={["From", "To", "Kind", "Count"]}
             rows={data.edges.map((e) => [e.src, e.dst, e.kind, fmt.n(e.hits)])} />
         </>
       )}
-      {opened && <NodeDetails node={opened} app={app} onClose={() => setOpen(null)} />}
+      {opened && <NodeDetails node={opened} onClose={() => setOpen(null)} />}
     </section>
   );
 }
@@ -204,9 +344,9 @@ function NodeDetails({ node, onClose }) {
     <aside className="details" aria-labelledby="node-h">
       <div className="details-head">
         <h2 id="node-h">{node.raw}</h2>
-        <button type="button" className="button" onClick={onClose}>Close</button>
+        <button type="button" className="icon-button" onClick={onClose} aria-label="Close details"><Icon name="close" /></button>
       </div>
-      <p className="muted">{KIND_LABEL[node.kind] || node.kind} · {fmt.n(node.hits)} events · {node.last_seen ? `last ${fmt.ago(node.last_seen)}` : "not seen yet"}</p>
+      <p className="muted">{KINDS[node.kind] || node.kind} · {fmt.n(node.hits)} events · {node.last_seen ? `last ${fmt.ago(node.last_seen)}` : "not seen yet"}</p>
       <Table caption={`Recent activity for ${node.raw}`} head={["Time", "Kind", "From", "To", "Status"]} empty="No recent events in the latest 200."
         rows={mine.map((e) => [fmt.time(e.ts), e.kind, label(e.target ? e.node : e.actor || ""), label(e.target || e.node || ""), e.status || ""])} />
     </aside>

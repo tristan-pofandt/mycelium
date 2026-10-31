@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { fmt, send, useApi } from "../api.js";
 import { Table } from "../charts.jsx";
+import { Icon } from "../icons.jsx";
 
 export default function Access({ app, apps }) {
   if (app === "all") {
@@ -105,7 +106,7 @@ function Moderation({ app, onDone }) {
         <ul className="queue" role="list">
           {data.items.map((item) => (
             <li key={item.id} className="queue-item">
-              <p><strong>{item.nickname}</strong> <span className="muted">({item.kind})</span>{item.status === "flagged" && <span className="badge badge-bad"><span aria-hidden="true">▲</span> Hidden from the board</span>}</p>
+              <p><strong>{item.nickname}</strong> <span className="muted">({item.kind})</span>{item.status === "flagged" && <span className="badge badge-bad"><Icon name="down" />Hidden from the board</span>}</p>
               <p>{item.origin_label} to {item.destination_label}. Meet: {item.meet_point}. Note: {item.note || "–"}</p>
               <ul className="muted">{item.reports.map((rep, i) => <li key={i}>{rep.reason}: {rep.note || "(no note)"}</li>)}</ul>
               <div className="actions">
