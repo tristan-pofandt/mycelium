@@ -164,7 +164,7 @@ Mycelium proxies admin actions to the app's own admin API; the admin token never
 
 ## Multi-user later
 
-Kept in mind, not built in v1: organisations that own apps, members with roles (owner, admin, viewer), email or OAuth sign-in, per-organisation ingest keys and quotas, and public onboarding (an emitter package per language and a Claude Code hook installer). The v1 tables already carry an `app` key everywhere, so adding an `org` column is a migration, not a rewrite.
+The full plan after v1 (other users, connectors for games and sales, the setup kit, the AI analyst, the security centre, the host agent and RegTech) is in [roadmap.md](roadmap.md). Kept in mind, not built in v1: organisations that own apps, members with roles (owner, admin, viewer), email or OAuth sign-in, per-organisation ingest keys and quotas, and public onboarding (an emitter package per language and a Claude Code hook installer). The v1 tables already carry an `app` key everywhere, so adding an `org` column is a migration, not a rewrite.
 
 ## Repository layout
 

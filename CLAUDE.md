@@ -1,6 +1,6 @@
 # Mycelium instructions for Claude Code
 
-Mycelium is a monitoring hub for several apps: status, uptime, costs, usage, API calls, access management, and a live Obsidian-style map of files and data stores with a pulse per read or write. Read `docs/architecture.md` before changing anything; it is the spec.
+Mycelium is a monitoring hub for several apps: status, uptime, costs, usage, API calls, access management, and a live Obsidian-style map of files and data stores with a pulse per read or write. Read `docs/architecture.md` before changing anything; it is the spec. `docs/roadmap.md` holds the plan after v1, its limits (no arbitrary remote commands; AI suggests, people approve) and open decisions.
 
 ## Where things are
 
