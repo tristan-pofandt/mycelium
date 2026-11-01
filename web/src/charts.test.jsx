@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Bars } from "./charts.jsx";
+import { Bars, Stat } from "./charts.jsx";
 import { StatusBadge } from "./panels/Status.jsx";
 
 describe("charts", () => {
@@ -11,6 +11,12 @@ describe("charts", () => {
     expect(screen.getByRole("table")).toBeTruthy();
     expect(screen.getByRole("rowheader", { name: "2026-10-30" })).toBeTruthy();
     expect(screen.getByRole("cell", { name: "$2" })).toBeTruthy();
+  });
+
+  it("pairs each stat's label with its value for screen readers", () => {
+    render(<dl><Stat label="Requests (24 h)" value="726" note="0 errors" /></dl>);
+    expect(screen.getByRole("term").textContent).toBe("Requests (24 h)");
+    expect(screen.getAllByRole("definition").map((d) => d.textContent)).toEqual(["726", "0 errors"]);
   });
 
   it("names status in words, not colour alone", () => {

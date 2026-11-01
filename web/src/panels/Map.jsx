@@ -276,7 +276,7 @@ export default function MapPanel({ app }) {
   const opened = nodes.find((n) => n.id === open);
   if (!data) return <p className="muted" role="status">Loading…</p>;
   return (
-    <section className="card map-card">
+    <section className="card map-card" aria-label="Activity map">
       <div className="toolbar">
         <div role="group" aria-label="View" className="segmented">
           <button type="button" aria-pressed={view === "graph"} onClick={() => setView("graph")}>Graph</button>

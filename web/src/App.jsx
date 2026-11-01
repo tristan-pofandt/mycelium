@@ -61,9 +61,9 @@ function Shell({ apps }) {
             exit={{ opacity: 0, transition: { duration: DUR.panelOut * 0.5 } }}
             transition={{ duration: DUR.panel, ease: EASE }}
           >
-            <header className="page-head">
-              <h1>{current.title} <span className="h1-scope">{appName}</span></h1>
-            </header>
+            <div className="page-head">
+              <h1>{current.title}<span className="h1-scope"><span className="sr-only">, </span>{appName}</span></h1>
+            </div>
             <Panel app={app} apps={apps} />
           </motion.div>
         </AnimatePresence>

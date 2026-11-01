@@ -5,9 +5,9 @@ import { useState } from "react";
 export function Stat({ label, value, note }) {
   return (
     <div className="stat">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
-      {note && <div className="stat-note">{note}</div>}
+      <dt className="stat-label">{label}</dt>
+      <dd className="stat-value">{value}</dd>
+      {note && <dd className="stat-note">{note}</dd>}
     </div>
   );
 }

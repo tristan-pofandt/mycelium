@@ -32,6 +32,8 @@ code { font-size: 13px; padding: 1px 5px; border-radius: var(--r-tag); backgroun
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .stat { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--r-tile); padding: 16px; }
 .stat-label { font-size: 13px; color: var(--text-muted); }
+.stat dd { margin: 0; }
+.stats { margin-top: 0; }
 .stat-value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin-top: 6px; }
 .stat-note { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
 

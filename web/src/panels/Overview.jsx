@@ -9,13 +9,13 @@ export default function Overview({ app, apps }) {
   return (
     <>
       {error && !s && <p className="notice" role="status">Couldn't load the summary.</p>}
-      <section aria-label="Last 24 hours" className="stats">
+      <dl aria-label="Last 24 hours" className="stats">
         <Stat label="Requests (24 h)" value={fmt.n(s?.requests)} note={s && `${fmt.n(s.errors)} errors`} />
         <Stat label="p95 latency (24 h)" value={fmt.ms(s?.p95_ms)} />
         <Stat label="Uptime" value={fmt.pct(s?.uptime_24h)} note={s && `30 days: ${fmt.pct(s.uptime_30d)}`} />
         <Stat label="Cost today" value={fmt.usd(s?.cost_today)} note={s && `This month: ${fmt.usd(s.cost_month)}`} />
         <Stat label="Reads and writes (24 h)" value={s ? `${fmt.n(s.reads)} / ${fmt.n(s.writes)}` : "–"} note={s && `${fmt.n(s.externals)} external calls`} />
-      </section>
+      </dl>
       <section className="card" aria-labelledby="apps-h">
         <h2 id="apps-h">Apps</h2>
         {shown.length ? (
