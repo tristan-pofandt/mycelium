@@ -6,7 +6,8 @@ Mycelium is a monitoring hub for several apps: status, uptime, costs, usage, API
 
 - `server/`: Flask app (`app.py`, `create_app()`), tests in `server/test_*.py`. Collectors go in `server/collectors/`, API modules in `server/api/`.
 - `web/`: React + Vite. Panels are registered in `web/src/panels/index.js` (`id`, `title`, `requires`, `component`).
-- `web/src/choreography.js`, `reduced.js`, `motion/fm.js` are copied from Reroute (`apps/plan-b-mvp/web/src/`) and `web/src/tokens.css` ports Reroute's `DESIGN.md` tokens. Keep them in step with Reroute; all easing and timing comes from `choreography.js`; transform and opacity only; honour reduced motion.
+- `web/src/choreography.js`, `reduced.js`, `motion/fm.js` are copied from Reroute (`apps/plan-b-mvp/web/src/`) and the base of `web/src/tokens.css` ports Reroute's `DESIGN.md` tokens. Keep them in step with Reroute; all easing and timing comes from `choreography.js`; transform and opacity only; honour reduced motion.
+- The look (since 2026-11-01) is Mycelium's own dashboard layer on top of those tokens: top pill nav, soft cards, hatched charts, gauge, heatmap. `DESIGN.md` is its rulebook; the direction brief is `.impeccable/surfaces/web-src.md`.
 - `emitters/python/`: the emitter apps embed. `hooks/claude/`: the Claude Code hook. `infra/`: Dockerfile.
 
 ## Commands

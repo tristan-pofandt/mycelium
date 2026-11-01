@@ -53,6 +53,9 @@ export const fmt = {
   time: (ts) => new Date(ts * 1000).toLocaleString(),
   ago: (ts) => {
     const s = Math.max(0, Date.now() / 1000 - ts);
-    return s < 60 ? `${Math.round(s)} s ago` : s < 3600 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
+    if (s < 60) return `${Math.round(s)} s ago`;
+    if (s < 3600) return `${Math.round(s / 60)} min ago`;
+    if (s < 48 * 3600) return `${Math.round(s / 3600)} h ago`;
+    return `${Math.round(s / 86400)} days ago`;
   },
 };

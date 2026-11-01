@@ -1,4 +1,4 @@
-"""Read API for the web app: GET /api/apps, /api/summary, /api/uptime, /api/costs, /api/usage, /api/events, /api/graph.
+"""Read API for the web app: GET /api/apps, /api/summary, /api/activity, /api/uptime, /api/costs, /api/usage, /api/events, /api/graph.
 
 Every endpoint takes ?app=<slug>; without it (or app=all) it covers all apps. Never returns key hashes or admin tokens.
 shortcut: 24-hour figures are computed from raw events on each request; switch to the hourly rollups if an app sends millions a day.
@@ -77,23 +77,50 @@ def _uptime(app, since):
     return round(100 * r["ok"] / r["n"], 2) if r["n"] else None
 
 
+def _window(app, start, end):
+    w, a = _where(app)
+    evs = _q(f"SELECT kind, status, duration_ms FROM events WHERE ts>=? AND ts<?{w}", [start, end, *a])
+    reqs = [e for e in evs if e["kind"] == "request"]
+    return {"requests": len(reqs), "errors": sum(e["status"] == "error" for e in evs),
+            "p95_ms": _pct([e["duration_ms"] for e in reqs], 0.95),
+            "reads": sum(e["kind"] == "read" for e in evs), "writes": sum(e["kind"] == "write" for e in evs),
+            "externals": sum(e["kind"] == "external" for e in evs)}
+
+
 @bp.get("/api/summary")
 def summary():
+    """The last 24 hours, plus the 24 hours before them under "previous" so the web app can show deltas."""
     app, now = _app(), time.time()
-    w, a = _where(app)
-    evs = _q(f"SELECT kind, status, duration_ms FROM events WHERE ts>=?{w}", [now - DAY, *a])
-    reqs = [e for e in evs if e["kind"] == "request"]
-    costs = _costs_by_day(app, now - 31 * DAY)
-    today, month = _day(now), _day(now)[:7]
+    costs = _costs_by_day(app, now - 32 * DAY)
+    today, yesterday, month = _day(now), _day(now - DAY), _day(now)[:7]
     total = lambda pred: round(sum(v["claude"] + v["app"] for d, v in costs.items() if pred(d)), 4)
+    prev = _window(app, now - 2 * DAY, now - DAY)
+    prev["cost_today"] = total(lambda d: d == yesterday)
     return jsonify({
-        "requests": len(reqs), "errors": sum(e["status"] == "error" for e in evs),
-        "p95_ms": _pct([e["duration_ms"] for e in reqs], 0.95),
-        "reads": sum(e["kind"] == "read" for e in evs), "writes": sum(e["kind"] == "write" for e in evs),
-        "externals": sum(e["kind"] == "external" for e in evs),
+        **_window(app, now - DAY, now + 1),
         "cost_today": total(lambda d: d == today), "cost_month": total(lambda d: d.startswith(month)),
         "uptime_24h": _uptime(app, now - DAY), "uptime_30d": _uptime(app, now - 30 * DAY),
+        "previous": prev,
     })
+
+
+RANGES = {"24h": (DAY, 3600), "7d": (7 * DAY, 3600), "30d": (30 * DAY, DAY)}
+
+
+@bp.get("/api/activity")
+def activity():
+    """Event counts per bucket: ?range=24h|7d (hourly) or 30d (daily), ?kind=request (default) or all. UTC bucket starts."""
+    app, now = _app(), time.time()
+    span, size = RANGES.get(request.args.get("range", "24h"), RANGES["24h"])
+    w, a = _where(app)
+    if request.args.get("kind", "request") != "all":
+        w += " AND kind='request'"
+    first = (int((now - span) // size) + 1) * size
+    counts, errors = {}, {}
+    for r in _q(f"SELECT CAST(ts/? AS INTEGER)*? AS b, COUNT(*) AS n, SUM(status='error') AS e FROM events WHERE ts>=?{w} GROUP BY b",
+                [size, size, first, *a]):
+        counts[r["b"]], errors[r["b"]] = r["n"], r["e"] or 0
+    return jsonify([{"ts": b, "count": counts.get(b, 0), "errors": errors.get(b, 0)} for b in range(first, int(now) + 1, size)])
 
 
 @bp.get("/api/uptime")

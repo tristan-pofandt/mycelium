@@ -7,11 +7,30 @@ import { useReducedMotion } from "./reduced.js";
 import { useApi } from "./api.js";
 import Palette from "./Palette.jsx";
 import Login from "./Login.jsx";
-import { Icon } from "./icons.jsx";
+import { Icon, Logo } from "./icons.jsx";
+import { useTheme } from "./theme.js";
+import { StatusBadge } from "./panels/Status.jsx";
 
 // Capabilities of the selected app; "all" gets the union, so a panel shows when any app supports it.
 const capsOf = (apps, slug) =>
   slug === "all" ? [...new Set(apps.flatMap((a) => a.capabilities))] : apps.find((a) => a.slug === slug)?.capabilities || [];
+
+function ThemeToggle() {
+  const [theme, toggle] = useTheme();
+  const next = theme === "dark" ? "light" : "dark";
+  return (
+    <button type="button" className="icon-button" onClick={toggle} aria-label={`Switch to ${next} theme`} title={`Switch to ${next} theme`}>
+      <Icon name={theme === "dark" ? "sun" : "moon"} />
+    </button>
+  );
+}
+
+// The state of the selected app (or the worst of all apps), always in the header.
+function overall(apps, slug) {
+  const shown = slug === "all" ? apps : apps.filter((a) => a.slug === slug);
+  if (shown.some((a) => a.status === "down")) return "down";
+  return shown.length && shown.every((a) => a.status === "up") ? "up" : null;
+}
 
 function Shell({ apps }) {
   const { app = "all", panel } = useParams();
@@ -21,6 +40,9 @@ function Shell({ apps }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const visible = panelsFor(capsOf(apps, app));
   const current = visible.find((p) => p.id === panel);
+
+  // On narrow screens the pill row scrolls: keep the current tab in view.
+  useEffect(() => { document.querySelector(".pill.active")?.scrollIntoView?.({ block: "nearest", inline: "center" }); }, [panel]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -33,25 +55,46 @@ function Shell({ apps }) {
   if (!current) return <Navigate to={`/${app}/${visible[0]?.id || "overview"}`} replace />;
   const Panel = current.component;
   const appName = app === "all" ? "All apps" : apps.find((a) => a.slug === app)?.name || app;
+  const nav = visible.filter((p) => p.place !== "tools");
+  const tools = visible.filter((p) => p.place === "tools");
   return (
     <div className="shell">
       <a href="#main" className="skip-link">Skip to content</a>
-      <nav className="sidebar" aria-label="Mycelium">
-        <div className="brand">Mycelium</div>
-        <label className="field-label" htmlFor="app-select">App</label>
-        <select id="app-select" className="select" value={app} onChange={(e) => navigate(`/${e.target.value}/${current.id}`)}>
-          <option value="all">All apps</option>
-          {apps.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
-        </select>
-        <button type="button" className="palette-hint" onClick={() => setPaletteOpen(true)} aria-keyshortcuts="Control+K">
-          <Icon name="search" />Go to <kbd>Ctrl</kbd><kbd>K</kbd>
-        </button>
-        <ul className="nav-list" role="list">
-          {visible.map((p) => (
-            <li key={p.id}><NavLink to={`/${app}/${p.id}`} className="nav-item">{p.title}</NavLink></li>
+      <header className="topbar">
+        <div className="topbar-start">
+          <NavLink to={`/${app}/overview`} className="brand" aria-label="Mycelium, overview"><Logo /><span>Mycelium</span></NavLink>
+          <label className="sr-only" htmlFor="app-select">App</label>
+          <div className="picker">
+            <select id="app-select" value={app} onChange={(e) => navigate(`/${e.target.value}/${current.id}`)}>
+              <option value="all">All apps</option>
+              {apps.map((a) => <option key={a.slug} value={a.slug}>{a.name}</option>)}
+            </select>
+            <Icon name="chevron" />
+          </div>
+        </div>
+        <nav className="pills" aria-label="Panels">
+          <ul role="list">
+            {nav.map((p) => (
+              <li key={p.id}>
+                <NavLink to={`/${app}/${p.id}`} className="pill"><Icon name={p.icon} /><span>{p.short}</span></NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="topbar-end">
+          <NavLink to={`/${app}/status`} className="status-pill" aria-label={`Status: ${({ up: "healthy", down: "down" })[overall(apps, app)] || "not checked yet"}. Open status and uptime`}>
+            <StatusBadge status={overall(apps, app)} words={{ up: "Healthy" }} />
+          </NavLink>
+          <button type="button" className="icon-button search-button" onClick={() => setPaletteOpen(true)} aria-keyshortcuts="Control+K"
+            aria-label="Go to an app or panel (Ctrl+K)">
+            <Icon name="search" /><kbd aria-hidden="true">Ctrl K</kbd>
+          </button>
+          <ThemeToggle />
+          {tools.map((p) => (
+            <NavLink key={p.id} to={`/${app}/${p.id}`} className="icon-button" aria-label={p.title} title={p.title}><Icon name={p.icon} /></NavLink>
           ))}
-        </ul>
-      </nav>
+        </div>
+      </header>
       <main className="content" id="main" tabIndex={-1}>
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
@@ -61,10 +104,12 @@ function Shell({ apps }) {
             exit={{ opacity: 0, transition: { duration: DUR.panelOut * 0.5 } }}
             transition={{ duration: DUR.panel, ease: EASE }}
           >
-            <div className="page-head">
-              <h1>{current.title}<span className="h1-scope"><span className="sr-only">, </span>{appName}</span></h1>
-            </div>
-            <Panel app={app} apps={apps} />
+            {current.id !== "overview" && (
+              <div className="page-head">
+                <h1>{current.title}<span className="h1-scope"><span className="sr-only">, </span>{appName}</span></h1>
+              </div>
+            )}
+            <Panel app={app} apps={apps} appName={appName} />
           </motion.div>
         </AnimatePresence>
       </main>

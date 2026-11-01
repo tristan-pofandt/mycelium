@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-01T00:00:00Z",
+  "title": "Design System: Mycelium",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "Dispatcher Indigo", "canonical": "#575af0", "tonalRamp": ["#1e1b4b", "#312e81", "#3730a3", "#4338ca", "#4f46e5", "#6366f1", "#a5b4fc", "#e0e7ff"] },
+      "bg-card": { "role": "neutral", "displayName": "Night Card", "canonical": "#121419", "tonalRamp": ["#06070b", "#08090d", "#111319", "#121419", "#1b1e27", "#64748b", "#94a3b8", "#f1f5f9"] },
+      "light-bg-base": { "role": "neutral", "displayName": "Cool Ground", "canonical": "#f1f2f6", "tonalRamp": ["#0f1222", "#475569", "#64748b", "#e7e9f0", "#f1f2f6", "#f5f6fa", "#ffffff", "#ffffff"] },
+      "success": { "role": "status", "displayName": "Up Green", "canonical": "#34d399 (dark) / #047857 (light)", "tonalRamp": ["#022c22", "#064e3b", "#047857", "#059669", "#10b981", "#34d399", "#6ee7b7", "#d1fae5"] },
+      "error": { "role": "status", "displayName": "Fault Red", "canonical": "#f87171 (dark) / #b91c1c (light)", "tonalRamp": ["#450a0a", "#7f1d1d", "#b91c1c", "#dc2626", "#ef4444", "#f87171", "#fca5a5", "#fee2e2"] }
+    },
+    "typographyMeta": {
+      "page-title": { "displayName": "Page title", "purpose": "Greeting and page heads." },
+      "kpi-value": { "displayName": "KPI value", "purpose": "Headline number on a KPI tile." },
+      "card-title": { "displayName": "Card title", "purpose": "Card h2." },
+      "body": { "displayName": "Body", "purpose": "Default 15px text with tabular figures." },
+      "control": { "displayName": "Control", "purpose": "Pills, buttons, selects, tables." },
+      "caption": { "displayName": "Caption", "purpose": "Labels, subtitles, legends." }
+    },
+    "shadows": [
+      { "name": "shadow-card-dark", "value": "0 1px 0 rgba(255,255,255,0.03) inset", "purpose": "Card highlight in dark mode; depth is tonal." },
+      { "name": "shadow-card-light", "value": "0 1px 2px rgba(15,18,34,0.04), 0 8px 28px rgba(15,18,34,0.05)", "purpose": "Faint card lift in light mode." },
+      { "name": "tooltip", "value": "0 8px 24px rgba(0,0,0,0.18)", "purpose": "Chart tooltip pill." },
+      { "name": "palette", "value": "0 24px 64px rgba(0,0,0,0.3)", "purpose": "Command palette." }
+    ],
+    "motion": [
+      { "name": "ease-out", "value": "cubic-bezier(0.23, 1, 0.32, 1)", "purpose": "CSS hover and press transitions." },
+      { "name": "EASE", "value": "cubic-bezier(0.22, 1, 0.36, 1)", "purpose": "choreography.js ease-out quint; the only easing for JS and map motion." },
+      { "name": "press", "value": "140ms", "purpose": "Press feedback." },
+      { "name": "hover", "value": "150ms", "purpose": "Hover and highlight fades." },
+      { "name": "morph", "value": "450ms", "purpose": "Map camera moves." }
+    ],
+    "breakpoints": [
+      { "name": "tablet", "value": "1180px" },
+      { "name": "phone", "value": "760px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Pill Nav",
+      "kind": "nav",
+      "refersTo": "pill-nav-item",
+      "description": "Top navigation; active item fills with the accent.",
+      "html": "<ul class=\"ds-pills\"><li><a class=\"ds-pill active\">Overview</a></li><li><a class=\"ds-pill\">Costs</a></li></ul>",
+      "css": ".ds-pills{display:flex;gap:2px;margin:0;padding:4px;list-style:none;background:var(--bg-card);border:1px solid var(--border);border-radius:999px;width:fit-content}.ds-pill{display:inline-flex;padding:8px 14px;border-radius:999px;color:var(--text-muted);font-size:14px;font-weight:500;transition:background .15s,color .15s}.ds-pill:hover{color:var(--text);background:var(--bg-pop)}.ds-pill:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}.ds-pill.active{background:var(--accent);color:#fff}"
+    },
+    {
+      "name": "KPI Tile",
+      "kind": "card",
+      "refersTo": "kpi-tile",
+      "description": "Headline number with label and delta pill.",
+      "html": "<div class=\"ds-kpi\"><div class=\"ds-kpi-value\">12,480</div><div class=\"ds-kpi-label\">Requests today</div><span class=\"ds-delta\">+8%</span></div>",
+      "css": ".ds-kpi{background:var(--bg-card);border:1px solid var(--border);box-shadow:var(--shadow-card);border-radius:24px;padding:18px;width:200px}.ds-kpi-value{font-size:28px;font-weight:600;letter-spacing:-.03em;line-height:1.1}.ds-kpi-label{margin-top:6px;font-size:13px;color:var(--text-muted)}.ds-delta{display:inline-flex;margin-top:10px;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;background:var(--good-soft);color:var(--success)}"
+    },
+    {
+      "name": "Hatched Bars",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Column chart: hatched bars, one solid highlighted bar.",
+      "html": "<div class=\"ds-bars\"><span class=\"ds-bar\" style=\"height:50px\"></span><span class=\"ds-bar on\" style=\"height:90px\"></span><span class=\"ds-bar\" style=\"height:65px\"></span></div>",
+      "css": ".ds-bars{display:flex;align-items:flex-end;gap:8px;height:100px;--seg:var(--accent)}.ds-bar{width:28px;border-radius:8px;background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--seg) 14%,transparent) 0 5px,color-mix(in srgb,var(--seg) 26%,transparent) 5px 7px)}.ds-bar.on{background:var(--seg)}"
+    },
+    {
+      "name": "Insight Card",
+      "kind": "card",
+      "refersTo": "insight-card",
+      "description": "Gradient callout, one per page at most.",
+      "html": "<div class=\"ds-insight\"><span class=\"ds-insight-label\">Insight</span><p>Errors fell 12% against yesterday.</p></div>",
+      "css": ".ds-insight{border-radius:24px;padding:22px;color:#fff;background:radial-gradient(120% 140% at 100% 0%,var(--insight-b),var(--insight-a));width:300px}.ds-insight-label{display:inline-flex;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.16);font-size:12px;font-weight:600;margin-bottom:10px}.ds-insight p{margin:0;font-size:19px;line-height:1.35;font-weight:500}"
+    },
+    {
+      "name": "Heat Scale",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Heatmap quartile steps.",
+      "html": "<div class=\"ds-heat\"><i class=\"h0\"></i><i class=\"h1\"></i><i class=\"h2\"></i><i class=\"h3\"></i><i class=\"h4\"></i></div>",
+      "css": ".ds-heat{display:flex;gap:3px}.ds-heat i{width:24px;height:24px;border-radius:3px}.ds-heat .h0{background:var(--heat-0)}.ds-heat .h1{background:var(--heat-1)}.ds-heat .h2{background:var(--heat-2)}.ds-heat .h3{background:var(--heat-3)}.ds-heat .h4{background:var(--heat-4)}"
+    },
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Pill button in the accent.",
+      "html": "<button class=\"ds-btn\">Save</button>",
+      "css": ".ds-btn{font:inherit;font-size:14px;font-weight:500;color:#fff;background:var(--accent);border:1px solid var(--accent);border-radius:999px;padding:8px 16px;cursor:pointer}.ds-btn:hover{filter:brightness(1.1)}.ds-btn:active{scale:.97}.ds-btn:focus-visible{outline:2px solid var(--accent-text);outline-offset:2px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Quiet Control Room",
+    "overview": "A card-based monitoring dashboard: big quiet cards on a soft ground, one indigo accent, data that reads at a glance. The base tokens come from Reroute's Night Dispatcher; the dashboard layer is Mycelium's own.",
+    "keyCharacteristics": [
+      "Two themes: system-following with an html[data-theme] override.",
+      "Cards at 24px radius with a hairline border and a faint shadow.",
+      "One accent for the active pill, focused bar, gauge and pulses.",
+      "Status colours only where they mean something.",
+      "Inter with tabular figures everywhere."
+    ],
+    "rules": [
+      { "name": "The One Accent Rule", "body": "Indigo marks the single active or focused thing on a card; everything else is neutral or hatched.", "section": "colors" },
+      { "name": "The Light-Mode Contrast Rule", "body": "Light mode swaps in darker status and event hues that reach 4.5:1; never reuse a dark-mode hue on a light surface.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "Every number sits in tabular figures.", "section": "typography" },
+      { "name": "The Tonal Depth Rule", "body": "In dark mode, separate surfaces by tone and border, not by shadow.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use var(--token) only.",
+      "Do put both light blocks in step when adding a themed token.",
+      "Do keep base tokens, choreography.js, reduced.js and motion/fm.js in step with Reroute.",
+      "Do pair every status colour with an icon or word."
+    ],
+    "donts": [
+      "Don't add a second accent colour or a fully solid bar chart.",
+      "Don't animate layout properties or use ease-in.",
+      "Don't introduce hard offset shadows.",
+      "Don't use dark-mode status hues on light surfaces."
+    ]
+  }
+}

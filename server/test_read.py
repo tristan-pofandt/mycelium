@@ -55,6 +55,14 @@ class ReadApiTest(unittest.TestCase):
         self.assertEqual((s["cost_today"], s["uptime_24h"]), (0.02, 50.0))
         self.assertEqual(self.get("/api/summary?app=other")["requests"], 0)
         self.assertEqual(self.get("/api/summary")["requests"], 4)
+        self.assertEqual(s["previous"]["requests"], 0)  # nothing happened the day before
+
+    def test_activity_buckets(self):
+        day = self.get("/api/activity?app=reroute")
+        self.assertEqual((len(day), sum(b["count"] for b in day), sum(b["errors"] for b in day)), (24, 4, 1))
+        self.assertEqual(sum(b["count"] for b in self.get("/api/activity?app=reroute&kind=all")), 7)
+        self.assertEqual(len(self.get("/api/activity?app=reroute&range=30d")), 30)
+        self.assertEqual(len(self.get("/api/activity?range=7d")), 7 * 24)
 
     def test_usage_costs_uptime_events_graph(self):
         u = self.get("/api/usage?app=reroute")

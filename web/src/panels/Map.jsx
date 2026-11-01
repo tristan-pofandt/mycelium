@@ -102,8 +102,10 @@ export default function MapPanel({ app }) {
     s.pal = readPalette();
     const mq = matchMedia("(prefers-color-scheme: dark)");
     const onTheme = () => { s.pal = readPalette(); refresh(); };
+    const mo = new MutationObserver(onTheme); // the header's theme toggle sets html[data-theme]
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     mq.addEventListener?.("change", onTheme);
-    return () => mq.removeEventListener?.("change", onTheme);
+    return () => { mo.disconnect(); mq.removeEventListener?.("change", onTheme); };
   }, []);
 
   useEffect(() => {
@@ -116,6 +118,7 @@ export default function MapPanel({ app }) {
       const P = () => s.pal;
       const shown = (n) => !s.hidden.has(n.kind) && (!s.visible || s.visible.has(n.id));
       const degree = (n) => s.adj.get(n.id)?.size || 0;
+      box.current.replaceChildren(); // a rebuild (theme or view change) must not stack a second canvas
       const g = new ForceGraph(box.current)
         .backgroundColor("rgba(0,0,0,0)")
         .width(box.current.clientWidth).height(box.current.clientHeight)

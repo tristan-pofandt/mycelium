@@ -8,6 +8,7 @@ describe("panel registry", () => {
       expect(p.title).toBeTruthy();
       expect(Array.isArray(p.requires)).toBe(true);
       expect(p.component).toBeTypeOf("function");
+      expect(p.short && p.icon).toBeTruthy();
     }
   });
 

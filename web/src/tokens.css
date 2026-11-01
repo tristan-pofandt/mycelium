@@ -1,12 +1,15 @@
-/* Design tokens ported from Reroute's DESIGN.md ("Night Dispatcher"): dark first, Inter, tabular numbers. Keep in step with Reroute. */
+/* Design tokens. The base values are ported from Reroute's DESIGN.md ("Night Dispatcher": Inter, tabular numbers, indigo accent);
+   keep those in step with Reroute. The dashboard layer below them (ground, card shadow, hatching, large radius) is Mycelium's own,
+   from the reference dashboards Tristan chose on 2026-11-01. See DESIGN.md.
+   Theme: follows the system unless html[data-theme] is set by the header toggle. */
 :root {
   --bg-void: #06070b;
-  --bg-base: #090a0f;
-  --bg-surface: #13151d;
-  --bg-card: #181b24;
-  --bg-pop: #1d212c;
-  --border: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.12);
+  --bg-base: #08090d;
+  --bg-surface: #111319;
+  --bg-card: #121419;
+  --bg-pop: #1b1e27;
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.13);
   --text: #f1f5f9;
   --text-muted: #94a3b8;
   --text-faint: #64748b;
@@ -19,6 +22,21 @@
   --teal: #2dd4bf;
   --violet: #a78bfa;
   --orange: #fb923c;
+
+  /* Dashboard layer */
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  --hatch: rgba(129, 140, 248, 0.22);
+  --hatch-line: rgba(129, 140, 248, 0.32);
+  --gauge-off: rgba(255, 255, 255, 0.1);
+  --heat-0: rgba(255, 255, 255, 0.05);
+  --heat-1: #312e81;
+  --heat-2: #4338ca;
+  --heat-3: #6366f1;
+  --heat-4: #a5b4fc;
+  --good-soft: rgba(52, 211, 153, 0.14);
+  --bad-soft: rgba(248, 113, 113, 0.14);
+  --insight-a: #4f46e5;
+  --insight-b: #7c3aed;
 
   /* Event colours on the map */
   --ev-read: var(--teal);
@@ -36,6 +54,7 @@
   --r-field: 12px;
   --r-control: 14px;
   --r-card: 20px;
+  --r-panel: 24px;
   --r-sheet: 28px;
 
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -44,15 +63,16 @@
   color-scheme: dark;
 }
 
+/* Light values, applied by the system setting or the toggle. The two selectors carry the same block. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-    --bg-void: #e4e7ee;
-    --bg-base: #eef0f5;
+    --bg-void: #e7e9f0;
+    --bg-base: #f1f2f6;
     --bg-surface: #ffffff;
     --bg-card: #ffffff;
-    --bg-pop: #f6f7fa;
-    --border: rgba(15, 18, 34, 0.08);
-    --border-strong: rgba(15, 18, 34, 0.16);
+    --bg-pop: #f5f6fa;
+    --border: rgba(15, 18, 34, 0.07);
+    --border-strong: rgba(15, 18, 34, 0.14);
     --text: #0f1222;
     --text-muted: #475569;
     --text-faint: #64748b;
@@ -61,16 +81,62 @@
     --accent-soft: rgba(79, 70, 229, 0.1);
     --series-1: #4f46e5;
     --series-2: #0d9488;
-    /* Mycelium additions (not in Reroute's DESIGN.md): the dark status and accent hues are under 3:1 on light surfaces, so light
-       mode gets darker steps that reach 4.5:1 on --bg-card and --bg-pop. */
+    /* Mycelium additions: the dark status and accent hues are under 3:1 on light surfaces, so light mode gets darker steps
+       that reach 4.5:1 on --bg-card and --bg-pop. */
     --success: #047857;
     --error: #b91c1c;
     --warning: #b45309;
     --teal: #0f766e;
     --orange: #c2410c;
     --violet: #6d28d9;
+    --shadow-card: 0 1px 2px rgba(15, 18, 34, 0.04), 0 8px 28px rgba(15, 18, 34, 0.05);
+    --hatch: rgba(99, 102, 241, 0.12);
+    --hatch-line: rgba(99, 102, 241, 0.2);
+    --gauge-off: rgba(15, 18, 34, 0.12);
+    --heat-0: rgba(15, 18, 34, 0.05);
+    --heat-1: #e0e7ff;
+    --heat-2: #a5b4fc;
+    --heat-3: #6366f1;
+    --heat-4: #3730a3;
+    --good-soft: rgba(4, 120, 87, 0.1);
+    --bad-soft: rgba(185, 28, 28, 0.09);
     color-scheme: light;
   }
+}
+:root[data-theme="light"] {
+  --bg-void: #e7e9f0;
+  --bg-base: #f1f2f6;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-pop: #f5f6fa;
+  --border: rgba(15, 18, 34, 0.07);
+  --border-strong: rgba(15, 18, 34, 0.14);
+  --text: #0f1222;
+  --text-muted: #475569;
+  --text-faint: #64748b;
+  --accent: #4f46e5;
+  --accent-text: #4338ca;
+  --accent-soft: rgba(79, 70, 229, 0.1);
+  --series-1: #4f46e5;
+  --series-2: #0d9488;
+  --success: #047857;
+  --error: #b91c1c;
+  --warning: #b45309;
+  --teal: #0f766e;
+  --orange: #c2410c;
+  --violet: #6d28d9;
+  --shadow-card: 0 1px 2px rgba(15, 18, 34, 0.04), 0 8px 28px rgba(15, 18, 34, 0.05);
+  --hatch: rgba(99, 102, 241, 0.12);
+  --hatch-line: rgba(99, 102, 241, 0.2);
+  --gauge-off: rgba(15, 18, 34, 0.12);
+  --heat-0: rgba(15, 18, 34, 0.05);
+  --heat-1: #e0e7ff;
+  --heat-2: #a5b4fc;
+  --heat-3: #6366f1;
+  --heat-4: #3730a3;
+  --good-soft: rgba(4, 120, 87, 0.1);
+  --bad-soft: rgba(185, 28, 28, 0.09);
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }

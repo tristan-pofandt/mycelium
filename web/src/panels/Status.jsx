@@ -4,9 +4,9 @@ import { Icon } from "../icons.jsx";
 
 // Status always pairs a colour with an icon and a word, never colour alone.
 const STATUS = { up: ["up", "Up", "ok"], down: ["down", "Down", "bad"], null: ["unknown", "Unknown", "none"] };
-export function StatusBadge({ status }) {
+export function StatusBadge({ status, words = {} }) {
   const [icon, word, cls] = STATUS[status] || STATUS.null;
-  return <span className={`badge badge-${cls}`}><Icon name={icon} />{word}</span>;
+  return <span className={`badge badge-${cls}`}><Icon name={icon} />{words[status] || word}</span>;
 }
 
 const dayClass = (d) => (!d ? "none" : d.up_pct >= 99.9 ? "ok" : d.up_pct >= 95 ? "warn" : "bad");
