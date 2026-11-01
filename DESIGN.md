@@ -184,10 +184,10 @@ Pills (999px) for nav, buttons, selects, badges, chips, deltas, segmented contro
 ## Components
 
 ### Top bar
-Logo, app picker (pill select with chevron), pill nav (white-on-accent active item, muted otherwise, icon plus label), icon buttons (40px circles, card ground, hairline, shadow; active uses accent-soft and accent text). Panels with `place: "tools"` render as icon buttons.
+Logo, app picker (`Picker`: a pill button with a chevron that turns over when open, opening a listbox popover; see Shared pieces), pill nav (white-on-accent active item, muted otherwise, icon plus label; Left, Right, Home and End move between items via `rovingKeys`), icon buttons (40px circles, card ground, hairline, shadow; active uses accent-soft and accent text). Panels with `place: "tools"` render as icon buttons.
 
 ### KPI tile
-Card ground, 24px radius, 40px outlined icon box top left, round arrow link top right, value, label, then a delta pill. Delta pills use good-soft or bad-soft with an icon and signed percentage plus a screen-reader phrase, or a flat neutral pill.
+Card ground, 24px radius, 40px outlined icon box top left, round arrow link top right, value, label, then a delta pill. Delta pills use good-soft or bad-soft with an icon and signed percentage plus a screen-reader phrase, or a flat neutral pill. The arrow link and the delta pill each have a `Tip` (the delta's reads "Change on the previous 24 hours").
 
 ### Column chart
 Hatched 135-degree bars (14% and 26% tint stripes of the series colour), one solid highlighted bar (`.on`), dashed gridlines, tooltip pill above the focused bar. Stacked segments gap 3px.
@@ -205,18 +205,51 @@ Radial indigo-to-violet gradient, white 19px text, a decorative spark icon in a 
 Rows with 1px hairline dividers. Badges are pop-ground pills with a coloured icon (ok, bad, none). Kind pills are pop-ground with colour from the event colours; the word always shows.
 
 ### Segmented control, buttons, chips, tables
-Segmented: pop track, selected segment lifts onto card ground. Buttons are pills; primary is accent with white text, danger is red text. Chips toggle with `aria-pressed` (off state is dimmed and struck through). Tables: 14px, hairline row dividers, 12px muted header, wrapped for horizontal scroll.
+Segmented: pop track, selected segment lifts onto card ground. Buttons are pills; primary is accent with white text, danger is red text. Chips toggle with `aria-pressed` (off state is dimmed and struck through). Tables: 14px, hairline row dividers, 12px muted header, wrapped for horizontal scroll. Rows tint to the pop ground on hover. Headers are sort buttons (`aria-sort`, a sort icon that is dim until active); a column sorts when every cell is a plain number or string, or when `keys` supplies one sortable value per cell for element cells. Values with units ("12 ms", "1.2 s") sort numerically. An empty table shows an `EmptyState`.
+
+### Shared pieces (`ui.jsx`, `tasks.jsx`)
+Each has a keyboard path, a screen-reader name and a reduced-motion form. Styles are in the "Shared pieces" section of `app.css`.
+- **Tip** (tooltip): opens after 500 ms on hover or focus. After one closes, neighbours open at once for 400 ms ("warm"). Escape closes. It links to its trigger with `aria-describedby` unless `describe={false}` (used when the text only repeats the label). Dark-on-light pill, 12.5px, `role="tooltip"`.
+- **Toasts** (`ToastProvider`, `useToast`): bottom-right region labelled "Notifications (Alt+T)", a polite live region. Each toast lasts 4 s and pauses on hover or focus. Alt+T focuses the newest, Escape dismisses it, and there is a close button. At most 3 show. Tones: info, good, bad (icon colour only; the title is the content).
+- **Switch**: `role="switch"`, Space or Enter toggles. The thumb slides on the house ease-out (0.26s, no bounce) and stretches (20px to 24px) while pressed. Accent track when on.
+- **HoldButton**: for destructive admin actions instead of `confirm()`. Hold the pointer, Space or Enter for 1.2 s; releasing or leaving early cancels. A fill (`scaleX`) shows progress, and a screen-reader hint says "Press and hold to confirm." Under reduced motion the fill jumps rather than running.
+- **EmptyState**: icon tile, bold title, muted text, optional action. **Skeleton**: pop-ground blocks with a 1.6 s shimmer, `role="status"` labelled "Loading"; the shimmer is off under reduced motion.
+- **Picker**: button plus listbox popover (`aria-activedescendant`). Arrows, Home, End and typing a letter move; Enter or Space chooses; Escape, Tab or a click outside closes. Focus returns to the button. The popover scales in from 0.96 over 0.18s.
+- **rovingKeys**: one handler for rows of links or buttons (pill nav, segmented controls). Arrows wrap, Home and End jump, Tab still leaves the row.
+- **useRowHighlight**: one pop-ground highlight slides between list rows with `translate` (height and opacity follow), 0.24s on the house ease. Rows carry `data-row`. No layout animation.
+
+### Task chip (`tasks.jsx`)
+State of one action the owner started, rebuilt from React Bits' Call Chip. Used in Access for saving settings, moderation actions and signing users out. `useTask()` runs `{ name, arg, expectedMs, action }` and returns the task, `run` and a retry.
+- States: queued, running, done, failed, cancelled. Each shows a glyph, a word, and elapsed seconds as text.
+- Running: the fill moves towards 90% of the expected time (default 1.5s), or follows a real `progress` value, and waits there. Done snaps full with a tick and a good-soft fill. Failed freezes where it was, shakes once (450ms), turns bad-soft, shows the error, and offers a Retry button.
+- `role="status"`, `aria-busy` while running, and one spoken sentence (name, argument, state, time, detail). Reduced motion keeps the fill still and drops the shake.
 
 ### Live map and preview
-Canvas graph on `--bg-void`, 600px high (400px small), 20px radius, keyboard-focusable with a caption line. Pulses travel along an edge and end in a ring on the node. The Overview preview (220px) reuses the same events.
+Canvas graph on `--bg-void`, 600px high (400px small), 20px radius, keyboard-focusable with a caption line. Pulses travel along an edge and end in a ring on the node. The Overview preview (220px) reuses the same events. The look follows ReactVibe's Node Flow (observed live on 2026-11-01): soft filled nodes, thin lines, small dots travelling along lines. Nodes are larger than Obsidian's with a faint same-colour halo. Each pulse is a single crisp dot (no glow; canvas blur is costly at up to 50 events a second). An ambient flow keeps two faint, slow dots on every line active in the last 60 s: 2.6 s per trip, fading as the activity ages, at most 60 lines, off under reduced motion. React Flow was evaluated and not adopted: it is a diagram editor rather than Obsidian-style physics, and SVG animation per event is the risk.
 
 ### Motion
 Timings come from `choreography.js` (the Reroute port): one ease-out quint `[0.22, 1, 0.36, 1]`, `DUR` press 0.14s, hover 0.15s, fade 0.2s, panel 0.22s, morph 0.45s; stagger 30ms capped at 7. CSS uses `--ease-out`, `--dur-hover`, `--dur-press`. Transform and opacity (or `translate`/`scale`) only; no layout animation. Map pulses are eased travel along an edge (read teal, write indigo, external orange, error red). With reduced motion (`reduced.js`, plus the CSS media query clamping durations) the edge lights briefly, camera moves are instant, and nothing slides.
+
+**Moving between pages** (`motion/pages.js`, from the reference clips chosen on 2026-11-01):
+- **Nav pill:** one accent pill behind the tabs stretches to the new tab. The leading edge travels 360ms on power3.out; the trailing edge travels 550ms on power3.inOut, so it lags and then catches up. Built as a sampled `clip-path` Web Animation.
+- **Page out:** the leaving page fades and blurs to 6px in about 90ms.
+- **Page in:** this was measured from the reference clip.
+  - Titles (`.rise` inside a `.rise-mask`) slide up from behind their own baseline over 700ms, starting at 150ms.
+  - Then the blocks (state line, KPI tiles, cards, toolbars) rise 24px into place in reading order, 65ms apart. They resolve from `blur(8px)` and opacity 0 over 650ms on the house ease, starting at 270ms.
+  - Up to 12 blocks are staggered; any later ones arrive together, through `choreography.js`'s `fx`.
+  - This is slower than Reroute's in-app entrances on purpose, because a page change is a moment to re-orient.
+- **Numbers count up:** KPI values and the uptime percentage climb from 0 as their tile arrives (each delayed to match its tile), over 1.1s on the house ease, and glide from old to new on refresh (`CountUp` in `charts.jsx`). They are written straight to the text node, never more decimals than the real value has; screen readers get only the final value.
+- **Theme switch:** the new theme grows in a circle from the toggle over 450ms (View Transitions, `::view-transition-new(root)`). Where View Transitions are unsupported, the switch is instant.
+- **Small pieces:** tooltips fade and scale in (0.14s), popovers scale in (0.18s), toasts rise 12px (0.32s), the switch thumb slides (0.26s), and rows that arrive live on the Events page slide in 6px (`row-in`, 0.36s). The first load of a table does not animate its rows. All use the house ease and `translate`, `scale` or opacity only.
+- **Reduced motion:** the pill jumps, blocks appear at once, and the theme switches instantly. Blur is the one exception to "transform and opacity only". It is kept at 8px or less, and it runs on page changes only, never while scrolling.
 
 ### Accessibility
 - Every chart has a `details` table ("table-toggle") or text equivalent; gauge is `role="img"` with a label; decorative plots are `aria-hidden`.
 - Status never relies on colour alone: badges and deltas carry an icon and text; kind pills carry the word; uptime days use colour with the table beside.
 - `:focus-visible` is a 2px accent-text outline, 2px offset. Skip link, named map region, `sr-only` phrases for deltas.
+
+### Sources
+Behaviour follows HeroUI and React Aria; the sliding row highlight takes Aceternity's card-hover idea; the task chip and hold-to-confirm come from React Bits' Call Chip and its hold-to-confirm idea; the map look is ReactVibe's Node Flow. All were rebuilt on Mycelium's tokens with no new dependency.
 
 ### Adding a panel
 Add one module and one registry entry in `web/src/panels/index.js` with `id`, `title`, `short` (pill label), `icon` (a name in `icons.jsx`), `requires` (capability list; the panel hides if the app lacks any), `component`, and optionally `place: "tools"`. Build it from the existing card, KPI, chart and table components, and give each visual a table or text equivalent.

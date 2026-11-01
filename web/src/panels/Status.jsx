@@ -1,4 +1,5 @@
 import { fmt, useApi } from "../api.js";
+import { Skeleton } from "../ui.jsx";
 import { DataTable, Table } from "../charts.jsx";
 import { Icon } from "../icons.jsx";
 
@@ -13,7 +14,7 @@ const dayClass = (d) => (!d ? "none" : d.up_pct >= 99.9 ? "ok" : d.up_pct >= 95 
 
 export default function Status({ app }) {
   const { data } = useApi("/api/uptime", app, { refresh: 60 });
-  if (!data) return <p className="muted" role="status">Loading…</p>;
+  if (!data) return <section className="card"><Skeleton height={220} lines={3} /></section>;
   const byDay = Object.fromEntries(data.days.map((d) => [d.day, d]));
   const days = Array.from({ length: 90 }, (_, i) => new Date(Date.now() - (89 - i) * 864e5).toISOString().slice(0, 10));
   return (

@@ -1,9 +1,43 @@
 // Chart pieces built from plain elements (no chart library), in the dashboard style of DESIGN.md: hatched bars with one solid
 // accent bar, a segmented arc gauge, a weekly heatmap and icon KPI tiles. Every piece has an exact text or table equivalent.
 // Colours: tokens in tokens.css (series validated for CVD and contrast); text always wears text tokens, never a series colour.
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { Link } from "react-router";
+import { animate } from "framer-motion";
 import { Icon } from "./icons.jsx";
+import { EmptyState, Tip } from "./ui.jsx";
+import { EASE, slow } from "./choreography.js";
+import { reducedMotion } from "./reduced.js";
+
+const COUNT_S = 1.1; // count-up length: long enough to read as a climb, short enough not to delay the number
+
+// A number that climbs to its value when the page opens, and glides from old to new when the data refreshes.
+// It writes straight to the text node (no re-render per frame); assistive technology reads only the final value.
+// `delay` (seconds) lines the first climb up with its tile's entrance; refreshes glide at once.
+export function CountUp({ value, format = String, delay = 0 }) {
+  const ref = useRef(null);
+  const from = useRef(0);
+  const first = useRef(true);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (value == null || !el) return undefined;
+    const start = from.current;
+    from.current = value;
+    const places = (String(value).split(".")[1] || "").length; // never show more decimals than the real value has
+    const show = (v) => { el.textContent = format(Number(v.toFixed(places))); };
+    if (reducedMotion() || start === value) { show(value); return undefined; }
+    show(start); // before the first paint, so the final value never flashes first
+    const c = animate(start, value, { duration: COUNT_S * slow(), delay: (first.current ? delay : 0) * slow(), ease: EASE, onUpdate: show });
+    first.current = false;
+    return () => c.stop();
+  }, [value]);
+  return (
+    <>
+      <span ref={ref} aria-hidden="true">{value == null ? "–" : format(value)}</span>
+      <span className="sr-only">{value == null ? "No data" : format(value)}</span>
+    </>
+  );
+}
 
 export function Stat({ label, value, note }) {
   return (
@@ -36,11 +70,11 @@ export function KpiTile({ icon, label, value, delta, to, linkLabel }) {
     <div className="kpi">
       <div className="kpi-top">
         <span className="kpi-icon"><Icon name={icon} size={18} /></span>
-        {to && <Link to={to} className="round-link" aria-label={linkLabel}><Icon name="arrow" /></Link>}
+        {to && <Tip label={linkLabel} describe={false}><Link to={to} className="round-link" aria-label={linkLabel}><Icon name="arrow" /></Link></Tip>}
       </div>
       <dd className="kpi-value">{value}</dd>
       <dt className="kpi-label">{label}</dt>
-      {delta && <dd className="kpi-delta">{delta}</dd>}
+      {delta && <dd className="kpi-delta"><Tip label="Change on the previous 24 hours" describe={false}><span className="delta-wrap" tabIndex={-1}>{delta}</span></Tip></dd>}
     </div>
   );
 }
@@ -116,7 +150,7 @@ export function Gauge({ value, label, sub, segments = 26 }) {
         })}
       </svg>
       <div className="gauge-centre" aria-hidden="true">
-        <span className="gauge-value">{value == null ? "–" : `${value}%`}</span>
+        <span className="gauge-value"><CountUp value={value} format={(v) => `${v}%`} delay={0.45} /></span>
         {sub && <span className="gauge-sub">{sub}</span>}
       </div>
     </div>
@@ -169,14 +203,41 @@ export function DataTable({ caption, head, rows }) {
   );
 }
 
-export function Table({ caption, head, rows, empty = "Nothing yet." }) {
-  if (!rows.length) return <p className="muted">{empty}</p>;
+// Tables sort by any column whose cells are plain values (or by `keys`, one sortable value per cell, when cells are elements).
+// Sort headers are buttons with aria-sort; rows tint on hover; an empty table shows an empty state instead.
+export function Table({ caption, head, rows, keys, empty = "Nothing yet.", emptyText, sortable = true }) {
+  const [sort, setSort] = useState(null); // { col, dir: 1 | -1 }
+  if (!rows.length) return <EmptyState title={empty}>{emptyText}</EmptyState>;
+  const val = (r, i, c) => { const k = keys?.[i]?.[c]; const v = k !== undefined ? k : r[c]; return typeof v === "number" || typeof v === "string" ? v : null; };
+  const canSort = (c) => sortable && rows.every((r, i) => val(r, i, c) !== null);
+  const order = rows.map((r, i) => i);
+  if (sort) {
+    const num = (v) => (typeof v === "number" ? v : Number(String(v).replace(/[^0-9.\-]/g, "")));
+    const one = /^[A-Za-z$]*\s?-?[\d,]+(\.\d+)?\s?[a-z%]*$/; // a single number with an optional unit: 235 ms, US$0.02, 94%
+    const numeric = rows.every((r, i) => typeof val(r, i, sort.col) === "number" || one.test(String(val(r, i, sort.col))));
+    order.sort((a, b) => {
+      const x = val(rows[a], a, sort.col), y = val(rows[b], b, sort.col);
+      return sort.dir * (numeric ? num(x) - num(y) : String(x).localeCompare(String(y)));
+    });
+  }
+  const click = (c) => setSort((s) => (s?.col === c ? (s.dir === 1 ? { col: c, dir: -1 } : null) : { col: c, dir: 1 }));
   return (
     <div className="table-wrap">
       <table className="table">
         <caption className="sr-only">{caption}</caption>
-        <thead><tr>{head.map((h, i) => <th key={i} scope="col">{h}</th>)}</tr></thead>
-        <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => (j ? <td key={j}>{c}</td> : <th key={j} scope="row">{c}</th>))}</tr>)}</tbody>
+        <thead><tr>{head.map((h, c) => {
+          const dir = sort?.col === c ? (sort.dir === 1 ? "ascending" : "descending") : undefined;
+          return (
+            <th key={c} scope="col" aria-sort={dir}>
+              {h && canSort(c) ? (
+                <button type="button" className="sort" onClick={() => click(c)}>
+                  {h}<Icon name={dir === "ascending" ? "sortUp" : dir === "descending" ? "sortDown" : "sort"} size={13} />
+                </button>
+              ) : h}
+            </th>
+          );
+        })}</tr></thead>
+        <tbody>{order.map((i) => <tr key={i}>{rows[i].map((c, j) => (j ? <td key={j}>{c}</td> : <th key={j} scope="row">{c}</th>))}</tr>)}</tbody>
       </table>
     </div>
   );

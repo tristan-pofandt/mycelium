@@ -1,4 +1,5 @@
 import { fmt, useApi } from "../api.js";
+import { Skeleton } from "../ui.jsx";
 import { Bars, Table } from "../charts.jsx";
 
 const callRows = (rows) => rows.map((r) => [r.name, fmt.n(r.calls), fmt.n(r.errors), fmt.ms(r.p50_ms), fmt.ms(r.p95_ms)]);
@@ -6,7 +7,7 @@ const HEAD = ["Name", "Calls", "Errors", "p50", "p95"];
 
 export default function Usage({ app }) {
   const { data } = useApi("/api/usage", app, { refresh: 60 });
-  if (!data) return <p className="muted" role="status">Loading…</p>;
+  if (!data) return <section className="card"><Skeleton height={220} lines={3} /></section>;
   return (
     <>
       <section className="card">
@@ -23,7 +24,7 @@ export default function Usage({ app }) {
 
 export function Apis({ app }) {
   const { data } = useApi("/api/usage", app, { refresh: 60 });
-  if (!data) return <p className="muted" role="status">Loading…</p>;
+  if (!data) return <section className="card"><Skeleton height={220} lines={3} /></section>;
   return (
     <section className="card" aria-labelledby="ext-h">
       <h2 id="ext-h">External APIs, last 24 hours</h2>

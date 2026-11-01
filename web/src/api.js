@@ -4,15 +4,24 @@ import { useEffect, useRef, useState } from "react";
 const q = (app, params = {}) => new URLSearchParams({ app: app || "all", ...params }).toString();
 
 // useApi("/api/summary", app, { refresh: 30 }) -> { data, error, reload }
+export const ToastBridge = { use: () => () => {} }; // set by ui.jsx to its toast hook, so api.js needs no import cycle
+
 export function useApi(path, app, { params = {}, refresh = 0 } = {}) {
   const [state, setState] = useState({ data: null, error: null });
+  const toast = ToastBridge.use();
   const [tick, setTick] = useState(0);
   const key = `${path}?${q(app, params)}`;
   useEffect(() => {
     let live = true;
     fetch(key)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
-      .then((data) => live && setState({ data, error: null }), (error) => live && setState((s) => ({ data: s.data, error })));
+      .then((data) => live && setState({ data, error: null }), (error) => {
+        if (!live) return;
+        setState((s) => {
+          if (s.data) toast({ key: path, tone: "bad", title: "Couldn't refresh some data. Showing the last figures we had." });
+          return { data: s.data, error };
+        });
+      });
     const t = refresh ? setTimeout(() => setTick((n) => n + 1), refresh * 1000) : null;
     return () => { live = false; clearTimeout(t); };
   }, [key, tick, refresh]);

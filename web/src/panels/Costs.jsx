@@ -1,4 +1,5 @@
 import { fmt, useApi } from "../api.js";
+import { Skeleton } from "../ui.jsx";
 import { Bars, Table } from "../charts.jsx";
 
 const SERIES = [
@@ -8,7 +9,7 @@ const SERIES = [
 
 export default function Costs({ app }) {
   const { data } = useApi("/api/costs", app, { refresh: 300 });
-  if (!data) return <p className="muted" role="status">Loading…</p>;
+  if (!data) return <section className="card"><Skeleton height={220} lines={3} /></section>;
   const total = data.days.reduce((s, d) => s + d.claude + d.app, 0);
   return (
     <>

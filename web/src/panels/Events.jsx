@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { fmt, useApi, useStream } from "../api.js";
 import { Icon } from "../icons.jsx";
+import { EmptyState } from "../ui.jsx";
 
 const KINDS = ["", "request", "read", "write", "external", "cost", "probe", "admin", "log"];
 const SOURCES = ["", "app", "claude", "probe", "collector"];
@@ -11,6 +12,8 @@ const describe = (e) => [e.actor && e.kind !== "request" ? e.actor.split(":")[1]
   .filter(Boolean).join(" ");
 
 export function EventTable({ events, showApp }) {
+  const seen = useRef(null); // ids on screen at first render: those never animate
+  if (seen.current === null && events.length) seen.current = new Set(events.map((e) => e.id ?? `${e.recv}-${e.node}-${e.kind}`));
   return (
     <div className="table-wrap">
       <table className="table">
@@ -18,7 +21,7 @@ export function EventTable({ events, showApp }) {
         <thead><tr><th scope="col">Time</th>{showApp && <th scope="col">App</th>}<th scope="col">Kind</th><th scope="col">Source</th><th scope="col">What</th><th scope="col">Status</th><th scope="col">Duration</th><th scope="col">Cost</th></tr></thead>
         <tbody>
           {events.map((e) => (
-            <tr key={e.id ?? `${e.recv}-${e.node}-${e.kind}`}>
+            <tr key={e.id ?? `${e.recv}-${e.node}-${e.kind}`} className={seen.current?.has(e.id ?? `${e.recv}-${e.node}-${e.kind}`) ? "" : "row-new"}>
               <td>{new Date(e.ts * 1000).toLocaleTimeString()}</td>
               {showApp && <td>{e.app}</td>}
               <td><span className={`kind kind-${e.kind}`}>{e.kind}</span></td>
@@ -79,7 +82,7 @@ export default function Events({ app }) {
         </button>
         <span className="muted" role="status">{log.connected ? (log.paused ? "Paused" : "Live") : "Reconnecting…"}</span>
       </div>
-      {log.events.length ? <EventTable events={log.events} showApp={app === "all"} /> : <p className="muted">No events yet.</p>}
+      {log.events.length ? <EventTable events={log.events} showApp={app === "all"} /> : <EmptyState title="No events yet.">They stream in here as the app and Claude Code report activity.</EmptyState>}
       {log.older && log.events.length > 0 && <button type="button" className="button" onClick={log.loadOlder}>Load older</button>}
     </section>
   );
@@ -91,7 +94,7 @@ export function Transactions({ app }) {
   return (
     <section className="card">
       <p className="lead">Every billable call: Google API requests from the app and Claude Code model calls. Shown: {fmt.usd(total)}.</p>
-      {log.events.length ? <EventTable events={log.events} showApp={app === "all"} /> : <p className="muted">No billable calls yet.</p>}
+      {log.events.length ? <EventTable events={log.events} showApp={app === "all"} /> : <EmptyState title="No billable calls yet.">Google API calls and Claude Code model calls appear here with their cost.</EmptyState>}
       {log.older && log.events.length > 0 && <button type="button" className="button" onClick={log.loadOlder}>Load older</button>}
     </section>
   );

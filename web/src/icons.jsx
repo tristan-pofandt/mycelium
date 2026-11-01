@@ -26,6 +26,16 @@ const PATHS = {
   spark: <path d="M8 1.75v3M8 11.25v3M1.75 8h3M11.25 8h3M3.6 3.6l1.8 1.8M10.6 10.6l1.8 1.8M12.4 3.6l-1.8 1.8M5.4 10.6l-1.8 1.8" />,
   trendUp: <path d="m2.5 11 4-4 2.5 2.5 4.5-4.5M10 5h3.5v3.5" />,
   trendDown: <path d="m2.5 5 4 4 2.5-2.5 4.5 4.5M10 11h3.5V7.5" />,
+  terminal: <><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="2" /><path d="m4.5 6.25 2 1.75-2 1.75M8.25 10h3" /></>,
+  check: <path d="m3.25 8.4 3 3 6.5-7" />,
+  clock: <><circle cx="8" cy="8" r="5.75" /><path d="M8 5v3.25l2 1.25" /></>,
+  stop: <><circle cx="8" cy="8" r="5.75" /><rect x="5.75" y="5.75" width="4.5" height="4.5" rx=".75" /></>,
+  retry: <path d="M12.75 8a4.75 4.75 0 1 1-1.4-3.35M12.75 2.75v2.5h-2.5" />,
+  copy: <><rect x="5.25" y="5.25" width="8.5" height="8.5" rx="1.75" /><path d="M10.75 5.25V3.5a1.25 1.25 0 0 0-1.25-1.25h-6A1.25 1.25 0 0 0 2.25 3.5v6a1.25 1.25 0 0 0 1.25 1.25h1.75" /></>,
+  sort: <path d="m5 6 3-3 3 3M5 10l3 3 3-3" />,
+  sortUp: <path d="m5 7 3-3 3 3M8 4v9" />,
+  sortDown: <path d="m5 9 3 3 3-3M8 12V3" />,
+  empty: <><path d="M2.25 9.25 4 3.75h8l1.75 5.5v3a1.25 1.25 0 0 1-1.25 1.25h-9A1.25 1.25 0 0 1 2.25 12.25Z" /><path d="M2.25 9.25h3.5l.75 1.5h3l.75-1.5h3.5" /></>,
 };
 
 export function Icon({ name, className = "", size = 16 }) {

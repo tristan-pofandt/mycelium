@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { fmt, useApi } from "../api.js";
-import { Bars, Delta, Gauge, Heatmap, KpiTile } from "../charts.jsx";
+import { Bars, CountUp, Delta, Gauge, Heatmap, KpiTile } from "../charts.jsx";
 import { Icon } from "../icons.jsx";
 import { StatusBadge } from "./Status.jsx";
 import MapPreview from "./MapPreview.jsx";
+import { EmptyState, Skeleton, Tip, rovingKeys, useRowHighlight } from "../ui.jsx";
 
 const greeting = () => { const h = new Date().getHours(); return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening"; };
 const RANGES = [["24h", "24 hours"], ["7d", "7 days"], ["30d", "30 days"]];
+const ENTER_AT = 0.3, STEP = 0.065; // seconds: when the KPI tiles rise in (motion/pages.js ENTER), so each number climbs as its tile arrives
 
 function stateLine(shown) {
   if (!shown.length) return "No apps connected yet.";
@@ -55,40 +57,44 @@ function RequestsCard({ app }) {
           <p className="card-sub">{rows.length ? `${fmt.n(total)} since ${range === "24h" ? new Date(rows[0].ts * 1000).toLocaleTimeString([], { hour: "numeric" }) + " yesterday" : new Date(rows[0].ts * 1000).toLocaleDateString([], { day: "numeric", month: "short" })}` : " "}</p>
         </div>
         <div className="card-tools">
-          <div role="group" aria-label="Range" className="segmented">
+          <div role="group" aria-label="Range" className="segmented" onKeyDown={(e) => rovingKeys(e, "button")}>
             {RANGES.map(([id]) => <button key={id} type="button" aria-pressed={range === id} onClick={() => setRange(id)}>{id}</button>)}
           </div>
-          <Link to={`/${app}/usage`} className="round-link" aria-label="Open usage"><Icon name="arrow" /></Link>
+          <Tip label="Open usage" describe={false}><Link to={`/${app}/usage`} className="round-link" aria-label="Open usage"><Icon name="arrow" /></Link></Tip>
         </div>
       </div>
       {data ? (
         <Bars title={`Requests per ${range === "24h" ? "hour" : "day"}`} hideTitle format={fmt.n} height={210}
           series={[{ key: "ok", label: "Requests", color: "var(--accent)" }, { key: "errors", label: "Errors", color: "var(--error)", solid: true }]}
           rows={rows.map((b) => ({ label: bucketLabel(b.ts, range), values: { ok: b.count - b.errors, errors: b.errors } }))} />
-      ) : <div className="skeleton" style={{ height: 250 }} />}
+      ) : <Skeleton height={250} />}
     </section>
   );
 }
 
 function RecentActivity({ app }) {
   const { data } = useApi("/api/events", app, { params: { limit: 6 }, refresh: 15 });
+  const { glow, listProps } = useRowHighlight();
   return (
     <section className="panel-card" aria-labelledby="recent-h">
       <div className="card-head">
         <h2 id="recent-h">Recent activity</h2>
-        <Link to={`/${app}/events`} className="round-link" aria-label="Open the event log"><Icon name="arrow" /></Link>
+        <Tip label="Open the event log" describe={false}><Link to={`/${app}/events`} className="round-link" aria-label="Open the event log"><Icon name="arrow" /></Link></Tip>
       </div>
-      {!data ? <div className="skeleton" style={{ height: 200 }} /> : data.length ? (
+      {!data ? <Skeleton height={200} /> : data.length ? (
+        <div className="rows" {...listProps}>
+        <span className="row-glow" ref={glow} aria-hidden="true" />
         <ul className="activity" role="list">
           {data.map((e) => (
-            <li key={e.id}>
+            <li key={e.id} data-row>
               <span className={`kind kind-${e.status === "error" ? "error" : e.kind}`}>{e.status === "error" ? "error" : e.kind}</span>
               <span className="activity-what">{(e.target || e.node || "").split(":").slice(1).join(":") || e.node}</span>
               <span className="activity-when">{fmt.ago(e.ts)}</span>
             </li>
           ))}
         </ul>
-      ) : <p className="muted">Nothing has happened yet.</p>}
+        </div>
+      ) : <EmptyState title="Nothing has happened yet.">Events appear as soon as the app or Claude Code reports activity.</EmptyState>}
     </section>
   );
 }
@@ -102,7 +108,7 @@ export default function Overview({ app, apps }) {
   return (
     <div className="overview">
       <div className="greeting">
-        <h1>{greeting()}</h1>
+        <h1><span className="rise-mask"><span className="rise">{greeting()}</span></span></h1>
         <p className={`state-line state-${shown.some((a) => a.status === "down") ? "bad" : "ok"}`}>
           <StatusBadge status={shown.some((a) => a.status === "down") ? "down" : shown.length && shown.every((a) => a.status === "up") ? "up" : null} words={{ up: "Healthy" }} />
           <span>{stateLine(shown)}</span>
@@ -112,13 +118,13 @@ export default function Overview({ app, apps }) {
 
       <div className="ov-main">
         <dl className="kpis ov-kpis" aria-label="Last 24 hours">
-          <KpiTile icon="requests" label="Requests in the last 24 hours" value={fmt.n(s?.requests)} to={`/${app}/usage`} linkLabel="Open usage"
+          <KpiTile icon="requests" label="Requests in the last 24 hours" value={<CountUp value={s?.requests} format={fmt.n} delay={ENTER_AT} />} to={`/${app}/usage`} linkLabel="Open usage"
             delta={s && <Delta now={s.requests} before={p.requests} />} />
-          <KpiTile icon="errors" label="Errors in the last 24 hours" value={fmt.n(s?.errors)} to={`/${app}/events`} linkLabel="Open the event log"
+          <KpiTile icon="errors" label="Errors in the last 24 hours" value={<CountUp value={s?.errors} format={fmt.n} delay={ENTER_AT + STEP} />} to={`/${app}/events`} linkLabel="Open the event log"
             delta={s && <Delta now={s.errors} before={p.errors} goodWhenUp={false} />} />
-          <KpiTile icon="latency" label="p95 response time" value={fmt.ms(s?.p95_ms)} to={`/${app}/apis`} linkLabel="Open API details"
+          <KpiTile icon="latency" label="p95 response time" value={<CountUp value={s?.p95_ms} format={fmt.ms} delay={ENTER_AT + 2 * STEP} />} to={`/${app}/apis`} linkLabel="Open API details"
             delta={s && <Delta now={s.p95_ms} before={p.p95_ms} goodWhenUp={false} />} />
-          <KpiTile icon="wallet" label={s ? `Cost today, ${fmt.usd(s.cost_month)} this month` : "Cost today"} value={fmt.usd(s?.cost_today)}
+          <KpiTile icon="wallet" label={s ? `Cost today, ${fmt.usd(s.cost_month)} this month` : "Cost today"} value={<CountUp value={s?.cost_today} format={fmt.usd} delay={ENTER_AT + 3 * STEP} />}
             to={`/${app}/costs`} linkLabel="Open costs" delta={s && <Delta now={s.cost_today} before={p.cost_today} goodWhenUp={false} />} />
         </dl>
         <RequestsCard app={app} />
@@ -126,7 +132,7 @@ export default function Overview({ app, apps }) {
           <RecentActivity app={app} />
           <section className="panel-card" aria-labelledby="heat-h">
             <div className="card-head"><h2 id="heat-h">Activity this week</h2></div>
-            {week ? <Heatmap buckets={week} title="Events per hour over the last 7 days" /> : <div className="skeleton" style={{ height: 200 }} />}
+            {week ? <Heatmap buckets={week} title="Events per hour over the last 7 days" /> : <Skeleton height={200} />}
           </section>
         </div>
       </div>
@@ -135,7 +141,7 @@ export default function Overview({ app, apps }) {
         <section className="panel-card ov-gauge" aria-labelledby="up-h">
           <div className="card-head">
             <div><h2 id="up-h">Uptime</h2><p className="card-sub">Health checks, last 30 days</p></div>
-            {shown.some((a) => a.capabilities.includes("probes")) && <Link to={`/${app}/status`} className="round-link" aria-label="Open status and uptime"><Icon name="arrow" /></Link>}
+            {shown.some((a) => a.capabilities.includes("probes")) && <Tip label="Open status and uptime" describe={false}><Link to={`/${app}/status`} className="round-link" aria-label="Open status and uptime"><Icon name="arrow" /></Link></Tip>}
           </div>
           <Gauge value={s?.uptime_30d ?? null} label="Uptime over 30 days" sub={s?.uptime_24h != null ? `${s.uptime_24h}% today` : null} />
           <ul className="app-list" role="list">
@@ -150,7 +156,7 @@ export default function Overview({ app, apps }) {
         <section className="panel-card ov-mini" aria-labelledby="mini-h">
           <div className="card-head">
             <div><h2 id="mini-h">Live map</h2><p className="card-sub">Reads and writes as they happen</p></div>
-            <Link to={`/${app}/map`} className="round-link" aria-label="Open the live map"><Icon name="arrow" /></Link>
+            <Tip label="Open the live map" describe={false}><Link to={`/${app}/map`} className="round-link" aria-label="Open the live map"><Icon name="arrow" /></Link></Tip>
           </div>
           <MapPreview app={app} />
         </section>

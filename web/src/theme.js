@@ -1,5 +1,6 @@
 // Theme: follows the system until the owner picks one with the header toggle; the pick is remembered in this browser only.
 import { useSyncExternalStore } from "react";
+import { revealTheme } from "./motion/pages.js";
 
 const KEY = "mycelium-theme";
 const mq = typeof matchMedia === "function" ? matchMedia("(prefers-color-scheme: dark)") : null;
@@ -30,5 +31,6 @@ const subscribe = (f) => {
 
 export function useTheme() {
   const theme = useSyncExternalStore(subscribe, currentTheme);
-  return [theme, () => set(theme === "dark" ? "light" : "dark")];
+  // `from` is the button pressed: the new theme grows from it in a circle (motion/pages.js)
+  return [theme, (from) => revealTheme(from, () => set(theme === "dark" ? "light" : "dark"))];
 }

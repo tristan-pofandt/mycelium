@@ -14,11 +14,13 @@ import { cubicBezier } from "framer-motion";
 import { forceX, forceY } from "d3-force-3d"; // the same copy force-graph uses
 import { Table } from "../charts.jsx";
 import { Icon } from "../icons.jsx";
+import { Skeleton, Tip, rovingKeys, useToast } from "../ui.jsx";
 
 const KINDS = { file: "File", store: "Data store", endpoint: "Endpoint", external: "External API", actor: "Actor" };
 const NODE_VAR = { file: "--text-muted", store: "--violet", endpoint: "--teal", external: "--orange", actor: "--text" };
 const EVENT_VAR = { read: "--ev-read", write: "--ev-write", external: "--ev-external", cost: "--ev-external", request: "--ev-read", error: "--ev-error" };
 const PULSE_MS = 700, RING_MS = 600, MAX_PULSES = 200, DIM = 0.12;
+const AMBIENT_MS = 60000, FLOW_MS = 2600, MAX_AMBIENT = 60; // ambient flow: how long an edge keeps flowing, one trip, how many at once
 const ease = cubicBezier(...EASE);
 const label = (id) => id.split(":").slice(1).join(":") || id;
 const short = (id) => label(id).split("/").filter(Boolean).pop() || label(id);
@@ -75,7 +77,7 @@ export default function MapPanel({ app }) {
   const fg = useRef(null);
   const graph = useRef(null);
   const s = useRef({ pal: null, adj: new Map(), hover: null, focus: null, lit: null, litLast: null, fadeFrom: 0, visible: null, hidden: new Set(),
-    pulses: [], rings: [], glow: new Map(), busyUntil: 0 }).current;
+    pulses: [], rings: [], glow: new Map(), recent: new Set(), busyUntil: 0 }).current;
   const tally = useRef({});
 
   // Keep the canvas drawing for `ms` (a fade or glow); pulses and rings keep it drawing on their own.
@@ -118,22 +120,24 @@ export default function MapPanel({ app }) {
       const P = () => s.pal;
       const shown = (n) => !s.hidden.has(n.kind) && (!s.visible || s.visible.has(n.id));
       const degree = (n) => s.adj.get(n.id)?.size || 0;
+      const radius = (n) => Math.sqrt(1 + Math.min(degree(n), 12) * 0.9) * 2.6; // larger, softer nodes than Obsidian's (Node Flow)
       box.current.replaceChildren(); // a rebuild (theme or view change) must not stack a second canvas
       const g = new ForceGraph(box.current)
         .backgroundColor("rgba(0,0,0,0)")
         .width(box.current.clientWidth).height(box.current.clientHeight)
         .nodeId("id").nodeLabel(() => "") // labels are drawn on the canvas; details live in the side panel and table
-        .nodeRelSize(2.2)
+        .nodeRelSize(2.6)
         .nodeVal((n) => 1 + Math.min(degree(n), 12) * 0.9)
         .nodeVisibility(shown)
         .linkVisibility((l) => shown(typeof l.source === "object" ? l.source : { id: l.source, kind: "" }) && shown(typeof l.target === "object" ? l.target : { id: l.target, kind: "" }))
         .nodeCanvasObjectMode(() => "replace")
         .nodeCanvasObject((n, ctx, scale) => {
           const k = dimK(), lit = s.lit || s.litLast, on = !lit || lit.has(n.id);
-          const r = Math.sqrt(1 + Math.min(degree(n), 12) * 0.9) * 2.2;
+          const r = radius(n);
+          const col = P().node[n.kind] || P().muted;
           ctx.globalAlpha = on ? 1 : 1 - (1 - DIM) * k;
-          ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
-          ctx.fillStyle = P().node[n.kind] || P().muted; ctx.fill();
+          ctx.beginPath(); ctx.arc(n.x, n.y, r + 1.6, 0, 2 * Math.PI); ctx.fillStyle = rgba(col, 0.18); ctx.fill(); // soft halo (Node Flow)
+          ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fillStyle = col; ctx.fill();
           if (n.fx != null) { ctx.lineWidth = 1 / scale; ctx.strokeStyle = P().muted; ctx.stroke(); } // pinned
           if (n.id === s.focus) { ctx.beginPath(); ctx.arc(n.x, n.y, r + 3, 0, 2 * Math.PI); ctx.lineWidth = 1.5 / scale; ctx.strokeStyle = P().accent; ctx.stroke(); }
           // Labels fade in with zoom, like Obsidian's text fade threshold; highlighted nodes always show theirs.
@@ -148,7 +152,7 @@ export default function MapPanel({ app }) {
           ctx.globalAlpha = 1;
         })
         .nodePointerAreaPaint((n, color, ctx) => {
-          const r = Math.sqrt(1 + Math.min(degree(n), 12) * 0.9) * 2.2 + 3; // a hit target bigger than the dot
+          const r = radius(n) + 3; // a hit target bigger than the dot
           ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fill();
         })
         .linkColor((l) => {
@@ -166,15 +170,30 @@ export default function MapPanel({ app }) {
         .onNodeDragEnd((n) => { n.fx = n.x; n.fy = n.y; setPinned((c) => c + 1); })
         .onRenderFramePost((ctx, scale) => {
           const now = performance.now();
-          // Pulses: eased travel along the edge, a soft halo drawn as a second circle (canvas shadowBlur is costly).
+          // Ambient flow (Node Flow): edges active in the last minute keep a faint, slow dot travelling along them, fading as the
+          // activity ages, so recent traffic reads at a glance between events. Capped, and off under reduced motion.
+          let ambient = 0;
+          if (!reducedMotion()) {
+            for (const l of s.recent) {
+              const age = now - l.lastAt;
+              if (age > AMBIENT_MS || l.source.x == null) { s.recent.delete(l); continue; }
+              if (++ambient > MAX_AMBIENT) break;
+              const a = l.source, b = l.target, alpha = 0.55 * (1 - age / AMBIENT_MS);
+              for (const phase of [0, 0.5]) {
+                const t = ((now / FLOW_MS + phase + (l.seed || 0)) % 1);
+                ctx.fillStyle = rgba(l.lastColor, alpha); ctx.beginPath();
+                ctx.arc(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, 1.3 / Math.sqrt(scale), 0, 2 * Math.PI); ctx.fill();
+              }
+            }
+          }
+          // Pulses: one crisp dot per event, eased along the edge (canvas shadowBlur is costly, and Node Flow's dots are plain).
           s.pulses = s.pulses.filter((p) => {
             const t = (now - p.t0) / PULSE_MS;
             if (t >= 1) { s.rings.push({ node: p.link.target, color: p.color, t0: now }); return false; }
             const { source: a, target: b } = p.link;
             if (a.x == null || b.x == null) return false;
             const e = ease(t), x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e;
-            ctx.fillStyle = rgba(p.color, 0.22); ctx.beginPath(); ctx.arc(x, y, 5 / Math.sqrt(scale), 0, 2 * Math.PI); ctx.fill();
-            ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(x, y, 2.2 / Math.sqrt(scale), 0, 2 * Math.PI); ctx.fill();
+            ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(x, y, 2.4 / Math.sqrt(scale), 0, 2 * Math.PI); ctx.fill();
             return true;
           });
           // Rings: the node that was read, written or called breathes out once.
@@ -185,7 +204,7 @@ export default function MapPanel({ app }) {
             ctx.beginPath(); ctx.arc(r.node.x, r.node.y, 4 + 10 * ease(t), 0, 2 * Math.PI); ctx.stroke();
             return true;
           });
-          if (!s.pulses.length && !s.rings.length && now > s.busyUntil) g.autoPauseRedraw(true);
+          if (!s.pulses.length && !s.rings.length && !ambient && now > s.busyUntil) g.autoPauseRedraw(true);
         })
         .cooldownTicks(150)
         .onEngineStop(() => { if (!g._fitted) { g._fitted = true; g.zoomToFit(reducedMotion() ? 0 : DUR.morph * 1000, 48); } })
@@ -234,6 +253,8 @@ export default function MapPanel({ app }) {
     if (!link) { link = { source: src, target: dst, kind: e.kind, hits: 0 }; links.push(link); added = true; }
     if (added) { g.graphData({ nodes, links }); G.nodes = nodes; G.links = links; s.adj = adjacency(links); } // d3 resolves link ends in place
     const color = s.pal.event[kind] || s.pal.muted;
+    link.lastAt = performance.now(); link.lastColor = color; link.seed ??= Math.random(); // feeds the ambient flow
+    s.recent.add(link);
     if (reducedMotion()) {
       s.glow.set(link, { until: performance.now() + 1200, color });
       kick(1300);
@@ -277,11 +298,11 @@ export default function MapPanel({ app }) {
 
   const focused = nodes.find((n) => n.id === focus);
   const opened = nodes.find((n) => n.id === open);
-  if (!data) return <p className="muted" role="status">Loading…</p>;
+  if (!data) return <section className="card"><Skeleton height={220} lines={3} /></section>;
   return (
     <section className="card map-card" aria-label="Activity map">
       <div className="toolbar">
-        <div role="group" aria-label="View" className="segmented">
+        <div role="group" aria-label="View" className="segmented" onKeyDown={(e) => rovingKeys(e, "button")}>
           <button type="button" aria-pressed={view === "graph"} onClick={() => setView("graph")}>Graph</button>
           <button type="button" aria-pressed={view === "table"} onClick={() => setView("table")}>Table</button>
         </div>
@@ -342,12 +363,20 @@ export default function MapPanel({ app }) {
 
 function NodeDetails({ node, onClose }) {
   const { data } = useApi("/api/events", node.app, { params: { limit: 200 } });
+  const toast = useToast();
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(node.raw); toast({ tone: "good", title: "Path copied." }); }
+    catch { toast({ tone: "bad", title: "The browser didn't allow copying." }); }
+  };
   const mine = (data || []).filter((e) => e.node === node.raw || e.target === node.raw || e.actor === node.raw).slice(0, 20);
   return (
     <aside className="details" aria-labelledby="node-h">
       <div className="details-head">
         <h2 id="node-h">{node.raw}</h2>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Close details"><Icon name="close" /></button>
+        <div className="actions">
+          <Tip label="Copy path" describe={false}><button type="button" className="icon-button" onClick={copy} aria-label="Copy path"><Icon name="copy" /></button></Tip>
+          <Tip label="Close details" describe={false}><button type="button" className="icon-button" onClick={onClose} aria-label="Close details"><Icon name="close" /></button></Tip>
+        </div>
       </div>
       <p className="muted">{KINDS[node.kind] || node.kind} · {fmt.n(node.hits)} events · {node.last_seen ? `last ${fmt.ago(node.last_seen)}` : "not seen yet"}</p>
       <Table caption={`Recent activity for ${node.raw}`} head={["Time", "Kind", "From", "To", "Status"]} empty="No recent events in the latest 200."
